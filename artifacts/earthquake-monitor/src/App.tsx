@@ -575,35 +575,6 @@ function Home() {
             </div>
           )}
         </div>
-
-        {/* Notification bell */}
-        <button
-          onClick={toggleNotif}
-          title={
-            notifPermission === 'denied' ? '通知がブロックされています（ブラウザ設定を確認）'
-            : notifEnabled ? '通知 ON（クリックで OFF）' : '通知 OFF（クリックで許可）'
-          }
-          className={`rounded-full px-4 py-2 text-sm font-bold transition-all duration-300 backdrop-blur-md border cursor-pointer
-            ${notifEnabled
-              ? 'text-yellow-300 border-yellow-400/60 bg-yellow-400/10'
-              : notifPermission === 'denied'
-                ? 'text-red-400/60 border-red-400/20 bg-black/40'
-                : 'text-[#a0a0a8] border-white/20 bg-black/50'}`}
-        >
-          {notifEnabled ? '🔔 通知 ON' : notifPermission === 'denied' ? '🔕 通知拒否' : '🔕 通知 OFF'}
-        </button>
-
-        {/* Sound toggle */}
-        <button
-          id="sound-toggle"
-          onClick={handleSoundToggle}
-          className={`rounded-full px-4 py-2 text-sm font-bold transition-all duration-300 backdrop-blur-md border cursor-pointer
-            ${isSoundEnabled
-              ? 'text-white border-[#4cd0a7] bg-[#4cd0a7]/10 shadow-[0_0_10px_rgba(76,208,167,0.3)]'
-              : 'text-[#a0a0a8] border-white/20 bg-black/50'}`}
-        >
-          {isSoundEnabled ? '🔊 Sound ON' : '🔇 Sound OFF'}
-        </button>
       </div>
 
       {/* EEW P/S wave legend + shake map legend */}
@@ -857,7 +828,10 @@ function Home() {
                         ${selectedQuake?.id === eq.id ? 'ring-1 ring-[#4cd0a7] bg-white/5' : ''}`}
                       onClick={() => setSelectedQuake(eq)}
                     >
-                      <div className={`min-w-[32px] h-[32px] rounded-full flex items-center justify-center font-mono text-base border-2 border-white/20 scale-${scale}`}>
+                      <div
+                        className="min-w-[32px] h-[32px] rounded-full flex items-center justify-center font-mono text-base border-2 border-white/20"
+                        style={{ backgroundColor: getIntensityColor(scale) }}
+                      >
                         {getScaleText(scale)}
                       </div>
                       <div className="flex flex-col flex-grow overflow-hidden">
@@ -946,7 +920,7 @@ function Home() {
             </div>
 
             <div className="border-t border-white/8 pt-4">
-              <div className="text-[11px] font-bold text-white/40 uppercase tracking-widest mb-3">音声</div>
+              <div className="text-[11px] font-bold text-white/40 uppercase tracking-widest mb-3">音声・通知</div>
               <div className="flex flex-col gap-2">
                 <label className="flex items-center justify-between cursor-pointer">
                   <div>
@@ -958,6 +932,21 @@ function Home() {
                     className={`relative w-11 h-6 rounded-full transition-colors duration-200 border ${isSoundEnabled ? 'bg-[#38bdf8] border-[#38bdf8]' : 'bg-white/10 border-white/20'}`}
                   >
                     <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200 ${isSoundEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                  </button>
+                </label>
+                <label className="flex items-center justify-between cursor-pointer">
+                  <div>
+                    <div className="text-sm font-semibold text-white/90">プッシュ通知</div>
+                    <div className="text-[11px] text-white/40">
+                      {notifPermission === 'denied' ? '通知がブロックされています（ブラウザ設定を確認）' : 'EEW・津波警報をブラウザ通知でお知らせ'}
+                    </div>
+                  </div>
+                  <button
+                    onClick={toggleNotif}
+                    disabled={notifPermission === 'denied'}
+                    className={`relative w-11 h-6 rounded-full transition-colors duration-200 border ${notifPermission === 'denied' ? 'bg-white/5 border-white/10 cursor-not-allowed' : notifEnabled ? 'bg-[#38bdf8] border-[#38bdf8]' : 'bg-white/10 border-white/20'}`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200 ${notifEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
                   </button>
                 </label>
               </div>

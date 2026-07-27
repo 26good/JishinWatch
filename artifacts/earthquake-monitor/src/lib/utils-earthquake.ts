@@ -197,7 +197,7 @@ export const computeIntensityAtLocation = (
 
 export const getTsunamiGradeColor = (grade: TsunamiGrade) => {
   if (grade === 'MajorWarning') return '#8b5cf6';
-  if (grade === 'Warning') return '#ef4444';
+  if (grade === 'Warning') return '#FF0000';
   if (grade === 'Watch') return '#facc15';
   return '#38bdf8';
 };
