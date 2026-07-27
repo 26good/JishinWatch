@@ -24,7 +24,6 @@ type Props = {
   userLocationIntensity?: string | null;
   showObsPoints?: boolean;
   showEEWMap?: boolean;
-  theme?: 'light' | 'dark';
 };
 
 const P_WAVE_SPEED_KM_PER_SEC = 6.0;
@@ -208,7 +207,7 @@ const extractCoastlines = (geoData: any): Array<{ pref: string; coords: [number,
   return result;
 };
 
-export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userLocation, onSetUserLocation, settingLocation, userNearestPref, userLocationIntensity, showObsPoints = true, showEEWMap = true, theme = 'dark' }: Props) => {
+export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userLocation, onSetUserLocation, settingLocation, userNearestPref, userLocationIntensity, showObsPoints = true, showEEWMap = true }: Props) => {
   const [geoData, setGeoData] = useState<any>(null);
 
   const hasTsunamiInfo = !!tsunami && tsunami.areas.length > 0;
@@ -254,9 +253,9 @@ export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userL
   }
 
   const getStyle = (feature: any) => {
-    let fillColor = theme === 'light' ? '#e2e5ea' : '#15151b';
+    let fillColor = '#15151b';
     let fillOpacity = 1;
-    let borderColor = theme === 'light' ? '#9aa0ab' : '#3a3a50';
+    let borderColor = '#3a3a50';
     let borderWeight = 0.8;
     const featureText = JSON.stringify(feature.properties);
 
@@ -374,18 +373,31 @@ export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userL
         if (!grade) return null;
         const color = getTsunamiGradeColor(grade);
         return (
-          <Polyline
-            key={`tsunami-coast-${i}`}
-            positions={coast.coords}
-            pathOptions={{
-              color,
-              weight: 7,
-              opacity: 0.92,
-              lineCap: 'round',
-              lineJoin: 'round',
-            }}
-            interactive={false}
-          />
+          <React.Fragment key={`tsunami-coast-${i}`}>
+            {/* White shadow underlay for visibility when the tsunami color is close to nearby colors */}
+            <Polyline
+              positions={coast.coords}
+              pathOptions={{
+                color: '#ffffff',
+                weight: 10,
+                opacity: 0.55,
+                lineCap: 'round',
+                lineJoin: 'round',
+              }}
+              interactive={false}
+            />
+            <Polyline
+              positions={coast.coords}
+              pathOptions={{
+                color,
+                weight: 7,
+                opacity: 0.92,
+                lineCap: 'round',
+                lineJoin: 'round',
+              }}
+              interactive={false}
+            />
+          </React.Fragment>
         );
       })}
 

@@ -37,30 +37,30 @@
 }
 
 :root {
-  --background: 210 20% 98%; /* #f7f9fa */
-  --foreground: 224 20% 12%;
-  --border: 220 13% 85%;
-  --input: 220 13% 85%;
-  --ring: 220 13% 75%;
+  --background: 240 100% 1%; /* #000002 */
+  --foreground: 0 0% 100%;
+  --border: 240 5% 26%;
+  --input: 240 5% 26%;
+  --ring: 240 5% 26%;
 
-  --card: 0 0% 100%; /* #ffffff */
-  --card-foreground: 224 20% 12%;
-  --card-border: 220 13% 85%;
+  --card: 226 24% 16%; /* #202434 */
+  --card-foreground: 0 0% 100%;
+  --card-border: 240 5% 26%;
 
-  --popover: 0 0% 100%;
-  --popover-foreground: 224 20% 12%;
-  --popover-border: 220 13% 85%;
+  --popover: 226 24% 16%;
+  --popover-foreground: 0 0% 100%;
+  --popover-border: 240 5% 26%;
 
-  --primary: 156 55% 40%; /* darker teal for contrast on white */
+  --primary: 156 59% 51%; /* #4cd0a7 */
   --primary-foreground: 0 0% 100%;
 
-  --muted: 220 14% 94%;
-  --muted-foreground: 220 9% 40%;
+  --muted: 240 4% 16%;
+  --muted-foreground: 240 5% 65%; /* #a0a0a8 */
 
-  --accent: 220 14% 94%;
-  --accent-foreground: 224 20% 12%;
+  --accent: 240 4% 16%;
+  --accent-foreground: 0 0% 100%;
 
-  --destructive: 0 72% 48%;
+  --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
 
   --radius: 12px;
@@ -110,18 +110,6 @@
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-}
-
-:root:not(.dark) .glass-panel {
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
-  color: #1a1d24;
-}
-
-:root:not(.dark) .glass-panel .text-white,
-:root:not(.dark) .glass-panel [class*="text-white/"] {
-  color: #1a1d24 !important;
 }
 
 .eew-warning-header {
@@ -215,9 +203,6 @@
 .leaflet-container {
   background-color: #050508 !important;
 }
-:root:not(.dark) .leaflet-container {
-  background-color: #dbe4ea !important;
-}
 .leaflet-bottom.leaflet-right {
   bottom: 60px;
   right: 10px;
@@ -241,17 +226,6 @@
 }
 
 .leaflet-control-zoom a:hover {
-  background: rgba(76, 208, 167, 0.18) !important;
-}
-
-:root:not(.dark) .leaflet-control-zoom,
-:root:not(.dark) .leaflet-control-zoom a {
-  background: rgba(255, 255, 255, 0.9) !important;
-  color: #1a1d24 !important;
-  border-color: rgba(0,0,0,0.12) !important;
-}
-
-:root:not(.dark) .leaflet-control-zoom a:hover {
   background: rgba(76, 208, 167, 0.18) !important;
 }
 
