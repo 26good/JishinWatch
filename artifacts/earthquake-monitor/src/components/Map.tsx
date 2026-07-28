@@ -378,10 +378,22 @@ export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userL
   const getMuniStyle = (feature: any) => {
     const code = feature.properties?.N03_007;
     const scale = code && muniScales ? muniScales[code] : undefined;
+    if (scale === undefined) {
+      // No intensity data (incl. intensity 0 / out of range) — fully transparent,
+      // so the underlying prefecture layer's plain land color shows through instead
+      // of this layer appearing to paint every municipality.
+      return {
+        color: 'transparent',
+        weight: 0,
+        fillColor: 'transparent',
+        fillOpacity: 0,
+        opacity: 0,
+      };
+    }
     return {
       color: '#3a3a50',
       weight: 0.4,
-      fillColor: scale !== undefined ? getIntensityColor(scale) : '#15151b',
+      fillColor: getIntensityColor(scale),
       fillOpacity: 1,
       opacity: 1,
     };
