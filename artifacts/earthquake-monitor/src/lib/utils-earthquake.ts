@@ -136,14 +136,27 @@ export const getTsunamiGradeLabel = (grade: TsunamiGrade) => {
 };
 
 /**
+ * Minimum "saturation" hypocentral distance used to avoid singularities near the
+ * source. Larger magnitude ruptures have a larger fault plane, so the nearest
+ * point on the fault is effectively closer than a point-source distance model
+ * suggests — hence a smaller floor for big M. Conversely, small-M earthquakes
+ * behave more like a true point source, so a larger floor prevents the log10
+ * term from blowing up the intensity right above small, shallow events.
+ * Linearly interpolated: M4 → 15km, M8+ → 5km.
+ */
+const saturationDistKm = (mag: number): number =>
+  Math.max(5, Math.min(15, 15 - (mag - 4) * 2.5));
+
+/**
  * Estimate the maximum seismic intensity at the surface point directly above
  * the hypocenter from magnitude and focal depth.
  * Uses the empirical formula: I = 2.606 + 1.498·M − 1.657·log10(depth)
- * (depth floored at 5 km to avoid singularity near surface).
+ * (depth floored using a magnitude-dependent saturation distance to avoid
+ * overestimating intensity for small, shallow earthquakes).
  */
 export const computeMaxIntensity = (mag: number, depthKm: number): string => {
   if (!Number.isFinite(mag) || mag <= 0) return '?';
-  const d = Math.max(depthKm, 5);
+  const d = Math.max(depthKm, saturationDistKm(mag));
   // Grid-search optimised against 1713 unique JMA records (intensity 4+, 2000-2026).
   // MSE=0.26, 93.7% within ±1 intensity level.
   // Tends to underestimate intensity 5強+ due to data imbalance (65% are intensity 4).
@@ -172,6 +185,11 @@ export const computeMaxIntensity = (mag: number, depthKm: number): string => {
  * ARV = 2-4  → soft alluvial / reclaimed land
  *
  * The ARV correction log10(ARV) ≈ +0.35 for loam, +0.6–1.0 for soft soil.
+ *
+ * The hypocentral distance is floored at a magnitude-dependent saturation
+ * distance (see saturationDistKm) rather than a fixed 5km, since a fixed floor
+ * caused small-magnitude earthquakes to show inflated intensity right above
+ * the epicenter — the exact ±1-level error this correction targets.
  */
 export const computeIntensityAtLocation = (
   mag: number,
@@ -180,7 +198,7 @@ export const computeIntensityAtLocation = (
   arv: number,
 ): string => {
   if (!Number.isFinite(mag) || mag <= 0) return '?';
-  const hypoDist = Math.max(Math.sqrt(depthKm ** 2 + epicentralDistKm ** 2), 5);
+  const hypoDist = Math.max(Math.sqrt(depthKm ** 2 + epicentralDistKm ** 2), saturationDistKm(mag));
   const arvClamped = Math.max(arv, 0.1);
   const I = 3.0 + 0.4 * mag - 0.5 * Math.log10(hypoDist) + Math.log10(arvClamped);
   if (I < 0.5) return '0';
