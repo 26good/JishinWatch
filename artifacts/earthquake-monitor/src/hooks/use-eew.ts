@@ -92,7 +92,7 @@ export const useEEW = (isSoundEnabled: boolean) => {
 
           if (isSoundEnabled && isNew) {
             const isWarnByTitle = data.Title?.includes('警報');
-            const isWarnByScale = /[567]/.test(data.MaxInt || '');
+            const isWarnByScale = /[567]/.test(data.MaxInt || data.MaxIntensity || '');
             if (isWarnByTitle || isWarnByScale) {
               playSound.alert();
             } else if (data.isFinal) {

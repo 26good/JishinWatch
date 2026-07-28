@@ -58,6 +58,7 @@ export type EEWData = {
   Hypocenter: string;
   OriginTime: string;
   MaxInt: string;
+  MaxIntensity?: string;
   Magunitude?: string;
   Magnitude?: string;
   Latitude?: string | number;

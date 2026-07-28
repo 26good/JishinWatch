@@ -24,6 +24,7 @@ interface P2PMessage {
   Hypocenter?: string;
   OriginTime?: string;
   MaxInt?: string;
+  MaxIntensity?: string;
   Magunitude?: string;
   Magnitude?: string;
   Latitude?: string | number;
@@ -42,7 +43,8 @@ const parseP2PEEW = (msg: P2PMessage): EEWData | null => {
     Title: msg.Title || '緊急地震速報',
     Hypocenter: msg.Hypocenter || '',
     OriginTime: msg.OriginTime || '',
-    MaxInt: msg.MaxInt || '',
+    MaxInt: msg.MaxInt || msg.MaxIntensity || '',
+    MaxIntensity: msg.MaxIntensity || msg.MaxInt || '',
     Magnitude: msg.Magunitude || msg.Magnitude || '',
     Latitude: msg.Latitude,
     longitude: msg.longitude,
@@ -154,7 +156,7 @@ export const useP2PQuakeRealtime = (isSandbox: boolean, isSoundEnabled: boolean)
             const isNew = lastEEWSerialRef.current !== eew.Serial;
             if (isNew && isSoundEnabled) {
               initAudioContext();
-              const isWarn = eew.Title?.includes('警報') || /[567]/.test(eew.MaxInt || '');
+              const isWarn = eew.Title?.includes('警報') || /[567]/.test(eew.MaxInt || eew.MaxIntensity || '');
               if (isWarn) playSound.alert();
               else if (eew.isFinal) playSound.end();
               else if (!lastEEWSerialRef.current) playSound.detect();

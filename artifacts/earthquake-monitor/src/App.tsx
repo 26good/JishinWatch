@@ -292,7 +292,7 @@ function Home() {
     notifyRef.current(
       `eew-${key}`,
       eew.Title || '緊急地震速報',
-      `${eew.Hypocenter} 推定最大震度 ${eew.MaxInt} / M${eew.Magunitude || eew.Magnitude}`
+      `${eew.Hypocenter} 推定最大震度 ${eew.MaxInt || eew.MaxIntensity} / M${eew.Magunitude || eew.Magnitude}`
     );
   }, [eew?.Serial]);
 
@@ -358,7 +358,7 @@ function Home() {
         const place = ev.Hypocenter || '震源調査中';
         const evMag = parseFloat(ev.Magunitude || ev.Magnitude || '0');
         const evDepth = parseInt(ev.Depth || '0') || 5;
-        const scale = ev.MaxInt?.trim() || computeMaxIntensity(evMag, evDepth);
+        const scale = ev.MaxInt?.trim() || ev.MaxIntensity?.trim() || computeMaxIntensity(evMag, evDepth);
         document.title = blink
           ? `${isWarn ? '🚨' : '🔔'} ${place} 震度${scale} | 緊急地震速報`
           : `緊急地震速報 | ${BASE}`;
@@ -413,7 +413,7 @@ function Home() {
     : selectedQuake?.earthquake.hypocenter.depth || 0;
 
   // When the EEW API MaxInt is empty, fall back to intensity computed from M and depth
-  const eewApiMaxInt = isEEWMode ? (eew.MaxInt?.trim() ?? '') : '';
+  const eewApiMaxInt = isEEWMode ? ((eew.MaxInt?.trim() || eew.MaxIntensity?.trim()) ?? '') : '';
   const eewComputedMaxInt = isEEWMode ? computeMaxIntensity(currentMagnitude, currentDepth) : '';
   const eewDisplayMaxInt = eewApiMaxInt || eewComputedMaxInt;
   const eewIntIsComputed = isEEWMode && !eewApiMaxInt && !!eewComputedMaxInt;
