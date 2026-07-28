@@ -168,6 +168,13 @@ function Home() {
   useEffect(() => {
     localStorage.setItem('history_limit_v1', String(historyLimit));
   }, [historyLimit]);
+  const [granularity, setGranularity] = useState<'pref' | 'municipality'>(() => {
+    const saved = localStorage.getItem('granularity_v1');
+    return saved === 'municipality' ? 'municipality' : 'pref';
+  });
+  useEffect(() => {
+    localStorage.setItem('granularity_v1', granularity);
+  }, [granularity]);
   const locationPanelRef = useRef<HTMLDivElement>(null);
   const updatePanelRef = useRef<HTMLDivElement>(null);
 
@@ -527,6 +534,7 @@ function Home() {
         userLocationIntensity={userLocationIntensity}
         showObsPoints={showObsPoints}
         showEEWMap={showEEWMap}
+        granularity={granularity}
       />
 
       {/* Top-right button row */}
@@ -667,7 +675,7 @@ function Home() {
                 <div className={`p-3 flex items-center justify-center text-white text-sm
                   ${isWarning ? 'bg-[#d93b3b]' : 'bg-[#d98c3b]'}`}
                 >
-                  第{eew.Serial || '1'}報
+                  {eew.isFinal ? '最終報' : `第${eew.Serial || '1'}報`}
                 </div>
               )}
             </div>
@@ -913,6 +921,23 @@ function Home() {
                         className={`px-2.5 py-1 rounded-md text-xs font-bold border transition-colors duration-150 ${historyLimit === n ? 'bg-[#38bdf8] border-[#38bdf8] text-black' : 'bg-white/5 border-white/15 text-white/60 hover:bg-white/10'}`}
                       >
                         {n}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-semibold text-white/90">震度表示の詳細さ</div>
+                    <div className="text-[11px] text-white/40">地図の震度色分けの単位</div>
+                  </div>
+                  <div className="flex gap-1">
+                    {([['pref', '都道府県'], ['municipality', '市区町村']] as const).map(([val, label]) => (
+                      <button
+                        key={val}
+                        onClick={() => setGranularity(val)}
+                        className={`px-2.5 py-1 rounded-md text-xs font-bold border transition-colors duration-150 ${granularity === val ? 'bg-[#38bdf8] border-[#38bdf8] text-black' : 'bg-white/5 border-white/15 text-white/60 hover:bg-white/10'}`}
+                      >
+                        {label}
                       </button>
                     ))}
                   </div>

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Circle, GeoJSON, MapContainer, Marker, Polyline, useMap, useMapEvents, ZoomControl } from 'react-leaflet';
 import L from 'leaflet';
-import { EEWData, EarthquakeHistoryItem, TsunamiInfo, getIntensityColor, getScaleText, getTsunamiGradeColor } from '../lib/utils-earthquake';
+import { EEWData, EarthquakeHistoryItem, TsunamiInfo, getIntensityColor, getScaleText, getTsunamiGradeColor, computeIntensityAtLocation } from '../lib/utils-earthquake';
 
 type UserLocation = { lat: number; lng: number } | null;
 
@@ -24,6 +24,7 @@ type Props = {
   userLocationIntensity?: string | null;
   showObsPoints?: boolean;
   showEEWMap?: boolean;
+  granularity?: 'pref' | 'municipality';
 };
 
 const P_WAVE_SPEED_KM_PER_SEC = 6.0;
@@ -245,8 +246,9 @@ const extractCoastlines = (geoData: any): Array<{ pref: string; zone: string | n
   return result;
 };
 
-export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userLocation, onSetUserLocation, settingLocation, userNearestPref, userLocationIntensity, showObsPoints = true, showEEWMap = true }: Props) => {
+export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userLocation, onSetUserLocation, settingLocation, userNearestPref, userLocationIntensity, showObsPoints = true, showEEWMap = true, granularity = 'pref' }: Props) => {
   const [geoData, setGeoData] = useState<any>(null);
+  const [muniGeoData, setMuniGeoData] = useState<any>(null);
 
   const hasTsunamiInfo = !!tsunami && tsunami.areas.length > 0;
   // キーは都道府県名、または北海道の場合は "都道府県名|予報区名" の複合キー。
@@ -287,12 +289,100 @@ export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userL
       .then(data => setGeoData(data));
   }, []);
 
+  // Municipality-level boundaries are ~8.7MB, so only fetch them when the user
+  // actually switches to the more granular view, and only once.
+  useEffect(() => {
+    if (granularity === 'municipality' && !muniGeoData) {
+      fetch('https://raw.githubusercontent.com/smartnews-smri/japan-topography/main/data/municipality/geojson/s0010/N03-21_210101.json')
+        .then(r => r.json())
+        .then(data => setMuniGeoData(data))
+        .catch(() => {});
+    }
+  }, [granularity, muniGeoData]);
+
   const prefScales: Record<string, number> = {};
   if (currentQuake) {
     currentQuake.points.forEach(p => {
       prefScales[p.pref] = Math.max(prefScales[p.pref] || 0, p.scale);
     });
   }
+
+  // Municipality-level scales: use observed point data where the name matches,
+  // otherwise fall back to a distance-based estimate from the hypocenter.
+  // scaleTextToNum converts computeIntensityAtLocation's string output ('5弱' etc.) to the 10x integer scale used elsewhere.
+  const scaleTextToNum = (text: string): number => {
+    const map: Record<string, number> = {
+      '0': 0, '1': 10, '2': 20, '3': 30, '4': 40,
+      '5弱': 45, '5強': 50, '6弱': 55, '6強': 60, '7': 70,
+    };
+    return map[text] ?? 0;
+  };
+
+  const muniScales = useMemo(() => {
+    if (granularity !== 'municipality' || !currentQuake || !muniGeoData) return null;
+
+    const hypo = currentQuake.earthquake.hypocenter;
+    const mag = hypo.magnitude;
+    const depth = hypo.depth;
+    const epiLat = hypo.latitude;
+    const epiLng = hypo.longitude;
+    const canEstimate = Number.isFinite(mag) && mag > 0 && epiLat > 0 && epiLng > 0;
+
+    // Build a lookup from observed point address text -> scale, to match against municipality names
+    const observed = currentQuake.points.map(p => ({
+      pref: p.pref,
+      addr: (p.addr || '').replace(/[市区町村郡]$/, ''),
+      scale: p.scale,
+    }));
+
+    const result: Record<string, number> = {};
+    for (const feature of muniGeoData.features) {
+      const props = feature.properties || {};
+      const code = props.N03_007;
+      if (!code) continue;
+      const pref = props.N03_001 || '';
+      const city = (props.N03_003 || '') + (props.N03_004 || '');
+
+      // Try to match an observed point in the same prefecture whose address is contained in this municipality's name (or vice versa)
+      const match = observed.find(o =>
+        o.pref === pref && o.addr && (city.includes(o.addr) || o.addr.includes(city.replace(/[市区町村郡]$/, '')))
+      );
+
+      if (match) {
+        result[code] = match.scale;
+      } else if (canEstimate) {
+        // Estimate from hypocentral distance using the polygon centroid (largest ring only)
+        let coords: number[][] = feature.geometry.coordinates[0];
+        if (feature.geometry.type === 'MultiPolygon') {
+          let maxLen = 0;
+          for (const poly of feature.geometry.coordinates as number[][][][]) {
+            if (poly[0].length > maxLen) { maxLen = poly[0].length; coords = poly[0]; }
+          }
+        }
+        let latSum = 0, lngSum = 0, pts = 0;
+        for (const pt of coords) { lngSum += pt[0]; latSum += pt[1]; pts++; }
+        if (pts > 0) {
+          const distKm = haversineKm(latSum / pts, lngSum / pts, epiLat, epiLng);
+          const text = computeIntensityAtLocation ? computeIntensityAtLocation(mag, depth, distKm, 1.0) : null;
+          if (text) result[code] = scaleTextToNum(text);
+        }
+      }
+    }
+    return result;
+  }, [granularity, currentQuake, muniGeoData]);
+
+  // Style function for the municipality-level GeoJSON layer (used when granularity === 'municipality')
+  const getMuniStyle = (feature: any) => {
+    const code = feature.properties?.N03_007;
+    const scale = code && muniScales ? muniScales[code] : undefined;
+    return {
+      color: '#3a3a50',
+      weight: 0.4,
+      fillColor: scale !== undefined ? getIntensityColor(scale) : '#15151b',
+      fillOpacity: 1,
+      opacity: 1,
+    };
+  };
 
   const getStyle = (feature: any) => {
     let fillColor = '#15151b';
@@ -301,7 +391,7 @@ export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userL
     let borderWeight = 0.8;
     const featureText = JSON.stringify(feature.properties);
 
-    if (currentQuake) {
+    if (currentQuake && !(granularity === 'municipality' && muniGeoData)) {
       for (const pref in prefScales) {
         const prefName = pref.replace(/[県府都]$/, '');
         if (featureText.includes(prefName)) {
@@ -409,6 +499,10 @@ export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userL
         <GeoJSON key={geoKey} data={geoData} style={getStyle} />
       )}
 
+      {granularity === 'municipality' && muniGeoData && currentQuake && (
+        <GeoJSON key={`muni-${geoKey}`} data={muniGeoData} style={getMuniStyle} />
+      )}
+
       {/* Tsunami coastline highlights: only coast-facing edges colored */}
       {hasTsunamiInfo && coastlines.map((coast, i) => {
         const key = coast.zone ? `${coast.pref}|${coast.zone}` : coast.pref;
@@ -504,7 +598,7 @@ export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userL
         />
       )}
 
-      {showObsPoints && currentQuake && geoData && geoData.features.map((feature: any, i: number) => {
+      {showObsPoints && currentQuake && !(eew && !eew.isCancel) && geoData && geoData.features.map((feature: any, i: number) => {
         let matchedPref: string | null = null;
         for (const pref in prefScales) {
           const prefName = pref.replace(/[県府都]$/, '');
