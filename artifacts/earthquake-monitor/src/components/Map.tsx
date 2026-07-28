@@ -121,10 +121,20 @@ const MapClickHandler = ({
   return null;
 };
 
-const getTsunamiAreaPrefNames = (name: string): string[] => {
-  if (name.includes('北海道')) return ['北海道'];
-  const matches = name.match(/[^\s、]+?[都道府県]/g);
-  return matches || [];
+// 津波情報のエリア名(気象庁の予報区名)から、都道府県名と、
+// 北海道の場合は予報区名(沿岸の区分)を判定する。
+// 北海道は6つの予報区に分かれており、それぞれ別の沿岸を指すため、
+// 都道府県名だけで判定すると反対側の海岸まで警報色で塗られてしまう。
+const HOKKAIDO_ZONE_NAMES = [
+  '北海道太平洋沿岸東部', '北海道太平洋沿岸中部', '北海道太平洋沿岸西部',
+  '北海道日本海沿岸北部', '北海道日本海沿岸南部', 'オホーツク海沿岸',
+];
+const getTsunamiAreaInfo = (name: string): { pref: string; zone: string | null } | null => {
+  const hokkaidoZone = HOKKAIDO_ZONE_NAMES.find(z => name.includes(z));
+  if (hokkaidoZone) return { pref: '北海道', zone: hokkaidoZone };
+  if (name.includes('北海道')) return { pref: '北海道', zone: null }; // 未知の北海道区分は全域扱い(フォールバック)
+  const match = name.match(/[^\s、]+?[都道府県]/);
+  return match ? { pref: match[0], zone: null } : null;
 };
 
 const useAnimationNow = (active: boolean) => {
@@ -146,10 +156,32 @@ const useAnimationNow = (active: boolean) => {
   return now;
 };
 
+// 北海道の海岸線セグメントを、気象庁の津波予報区(6区分)に近似的に分類する。
+// GeoJSONには予報区の属性が無いため、セグメントの重心の緯度経度から簡易的に判定する。
+const classifyHokkaidoZone = (coords: [number, number][]): string => {
+  const n = coords.length;
+  const avgLat = coords.reduce((s, c) => s + c[0], 0) / n;
+  const avgLng = coords.reduce((s, c) => s + c[1], 0) / n;
+
+  // 宗谷岬(45.5N, 141.9E)を起点に、日本海側(西)・オホーツク側(北東)・太平洋側(南)を大まかに分ける
+  if (avgLat >= 44.0 && avgLng <= 142.0) {
+    // 北西〜西: 日本海沿岸
+    return avgLat >= 44.8 ? '北海道日本海沿岸北部' : '北海道日本海沿岸南部';
+  }
+  if (avgLat >= 43.8 && avgLng > 142.0 && avgLng <= 145.3) {
+    // 北〜北東: オホーツク海沿岸
+    return 'オホーツク海沿岸';
+  }
+  // 南側: 太平洋沿岸を経度で3分割(西部/中部/東部)
+  if (avgLng <= 140.8) return '北海道太平洋沿岸西部';
+  if (avgLng <= 143.5) return '北海道太平洋沿岸中部';
+  return '北海道太平洋沿岸東部';
+};
+
 // Extract coastline segments from prefecture GeoJSON.
 // A coastline edge is an outer-ring edge that appears in exactly one prefecture
 // (not shared with any neighbour). Holes (inner rings) are ignored.
-const extractCoastlines = (geoData: any): Array<{ pref: string; coords: [number, number][] }> => {
+const extractCoastlines = (geoData: any): Array<{ pref: string; zone: string | null; coords: [number, number][] }> => {
   if (!geoData?.features) return [];
 
   // --- Step 1: Count every edge on every outer ring ---
@@ -174,7 +206,7 @@ const extractCoastlines = (geoData: any): Array<{ pref: string; coords: [number,
   }
 
   // --- Step 2: Walk each outer ring and emit coast segments ---
-  const result: Array<{ pref: string; coords: [number, number][] }> = [];
+  const result: Array<{ pref: string; zone: string | null; coords: [number, number][] }> = [];
   for (const feature of geoData.features) {
     const pref = feature.properties?.nam_ja || feature.properties?.name || '';
     const geom = feature.geometry;
@@ -187,6 +219,13 @@ const extractCoastlines = (geoData: any): Array<{ pref: string; coords: [number,
     for (const ring of outerRings) {
       if (!ring || ring.length < 2) continue;
       let seg: [number, number][] = [];
+      const flush = () => {
+        if (seg.length >= 2) {
+          const zone = pref === '北海道' ? classifyHokkaidoZone(seg) : null;
+          result.push({ pref, zone, coords: seg });
+        }
+        seg = [];
+      };
       for (let i = 0; i < ring.length - 1; i++) {
         const a = `${ring[i][0]},${ring[i][1]}`;
         const b = `${ring[i + 1][0]},${ring[i + 1][1]}`;
@@ -197,11 +236,10 @@ const extractCoastlines = (geoData: any): Array<{ pref: string; coords: [number,
           seg.push([ring[i + 1][1], ring[i + 1][0]]);
         } else {
           // shared edge — flush current segment
-          if (seg.length >= 2) result.push({ pref, coords: seg });
-          seg = [];
+          flush();
         }
       }
-      if (seg.length >= 2) result.push({ pref, coords: seg });
+      flush();
     }
   }
   return result;
@@ -211,14 +249,18 @@ export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userL
   const [geoData, setGeoData] = useState<any>(null);
 
   const hasTsunamiInfo = !!tsunami && tsunami.areas.length > 0;
+  // キーは都道府県名、または北海道の場合は "都道府県名|予報区名" の複合キー。
+  // これにより、北海道の一部予報区だけに警報が出ている場合でも、
+  // 該当しない沿岸(反対側など)まで塗られることがなくなる。
   const tsunamiPrefGrades: Record<string, string> = {};
   tsunami?.areas.forEach(area => {
-    getTsunamiAreaPrefNames(area.name).forEach(prefName => {
-      const current = tsunamiPrefGrades[prefName];
-      if (!current || area.grade === 'MajorWarning' || (area.grade === 'Warning' && current !== 'MajorWarning')) {
-        tsunamiPrefGrades[prefName] = area.grade;
-      }
-    });
+    const info = getTsunamiAreaInfo(area.name);
+    if (!info) return;
+    const key = info.zone ? `${info.pref}|${info.zone}` : info.pref;
+    const current = tsunamiPrefGrades[key];
+    if (!current || area.grade === 'MajorWarning' || (area.grade === 'Warning' && current !== 'MajorWarning')) {
+      tsunamiPrefGrades[key] = area.grade;
+    }
   });
 
   const coastlines = useMemo(() => geoData ? extractCoastlines(geoData) : [], [geoData]);
@@ -369,7 +411,10 @@ export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userL
 
       {/* Tsunami coastline highlights: only coast-facing edges colored */}
       {hasTsunamiInfo && coastlines.map((coast, i) => {
-        const grade = tsunamiPrefGrades[coast.pref];
+        const key = coast.zone ? `${coast.pref}|${coast.zone}` : coast.pref;
+        // 北海道で予報区判定できているセグメントは、複合キーが存在しない場合は
+        // 都道府県名だけの全域指定(フォールバック)にも一致させる
+        const grade = tsunamiPrefGrades[key] ?? (coast.zone ? tsunamiPrefGrades[coast.pref] : undefined);
         if (!grade) return null;
         const color = getTsunamiGradeColor(grade);
         return (

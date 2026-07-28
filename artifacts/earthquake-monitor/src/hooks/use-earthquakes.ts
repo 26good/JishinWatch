@@ -10,15 +10,17 @@ const formatLastUpdateTime = () =>
     second: '2-digit',
   });
 
-export const useEarthquakes = (isSoundEnabled: boolean) => {
+export const useEarthquakes = (isSoundEnabled: boolean, historyLimit: number = 30) => {
   const [history, setHistory] = useState<EarthquakeHistoryItem[]>([]);
   const [selectedQuake, setSelectedQuake] = useState<EarthquakeHistoryItem | null>(null);
   const [lastUpdate, setLastUpdate] = useState<string>('--:--:--');
   const lastQuakeIdRef = useRef<string | null>(null);
+  const historyLimitRef = useRef(historyLimit);
+  historyLimitRef.current = historyLimit;
 
   const fetchHistory = async () => {
     try {
-      const res = await fetch('https://api.p2pquake.net/v2/history?codes=551&limit=20');
+      const res = await fetch(`https://api.p2pquake.net/v2/history?codes=551&limit=${historyLimitRef.current}`);
       const list: EarthquakeHistoryItem[] = await res.json();
 
       const validQuakes = list.filter(eq =>
@@ -45,7 +47,7 @@ export const useEarthquakes = (isSoundEnabled: boolean) => {
         }
 
         lastQuakeIdRef.current = newQuakeId;
-        setHistory(validQuakes.slice(0, 10));
+        setHistory(validQuakes.slice(0, historyLimitRef.current));
       }
 
       setLastUpdate(formatLastUpdateTime());
@@ -58,7 +60,7 @@ export const useEarthquakes = (isSoundEnabled: boolean) => {
     fetchHistory();
     const interval = setInterval(fetchHistory, 5000);
     return () => clearInterval(interval);
-  }, [isSoundEnabled]);
+  }, [isSoundEnabled, historyLimit]);
 
   return { history, selectedQuake, setSelectedQuake, lastUpdate };
 };

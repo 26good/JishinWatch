@@ -122,6 +122,16 @@ const decideTsunamiGrade = (scenario: ScenarioQuake): 'MajorWarning' | 'Warning'
   return null;
 };
 
+// 震源座標から見た北海道側の最も近い予報区名を大まかに判定する
+// (Map.tsx側のclassifyHokkaidoZoneと対になる簡易ロジック)
+const hokkaidoZoneFromEpicenter = (lat: number, lng: number): string => {
+  if (lat >= 43.5 && lng <= 143.0) return lng <= 141.5 ? '北海道日本海沿岸北部' : 'オホーツク海沿岸';
+  if (lat >= 43.0 && lng > 143.0) return '北海道太平洋沿岸東部';
+  if (lng <= 140.8) return '北海道太平洋沿岸西部';
+  if (lng <= 142.5) return '北海道太平洋沿岸中部';
+  return '北海道太平洋沿岸東部';
+};
+
 // 震源に近い太平洋沿岸県を到達予想順に並べ、津波情報を組み立てる
 const makeTsunami = (scenario: ScenarioQuake, grade: 'Watch' | 'Warning' | 'MajorWarning'): TsunamiInfo => {
   const nearCoasts = PACIFIC_COASTAL_PREFS
@@ -150,8 +160,11 @@ const makeTsunami = (scenario: ScenarioQuake, grade: 'Watch' | 'Warning' | 'Majo
     areas: nearCoasts.map((c, i) => {
       const g = gradeAt(i);
       const arrivalMin = 10 + Math.round(c.dist / 20);
+      // 北海道は予報区(沿岸の方角)まで指定しないと、震源と反対側の海岸まで
+      // 警報色で塗られてしまうため、震源座標から予報区名を判定して付与する
+      const name = c.pref === '北海道' ? hokkaidoZoneFromEpicenter(scenario.lat, scenario.lng) : c.pref;
       return {
-        name: c.pref,
+        name,
         grade: g,
         immediate: false,
         firstHeight: { arrivalTime: `約${arrivalMin}分後` },
