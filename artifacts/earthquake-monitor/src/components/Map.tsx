@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Circle, GeoJSON, MapContainer, Marker, Polyline, useMap, useMapEvents, ZoomControl } from 'react-leaflet';
 import L from 'leaflet';
-import { EEWData, EarthquakeHistoryItem, TsunamiInfo, getIntensityColor, getScaleText, getTsunamiGradeColor, computeIntensityAtLocation } from '../lib/utils-earthquake';
+import { EEWData, EarthquakeHistoryItem, TsunamiInfo, getIntensityColor, getScaleText, getTsunamiGradeColor } from '../lib/utils-earthquake';
 
 type UserLocation = { lat: number; lng: number } | null;
 
@@ -307,28 +307,15 @@ export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userL
     });
   }
 
-  // Municipality-level scales: use observed point data where the name matches,
-  // otherwise fall back to a distance-based estimate from the hypocenter.
-  // scaleTextToNum converts computeIntensityAtLocation's string output ('5弱' etc.) to the 10x integer scale used elsewhere.
-  const scaleTextToNum = (text: string): number => {
-    const map: Record<string, number> = {
-      '0': 0, '1': 10, '2': 20, '3': 30, '4': 40,
-      '5弱': 45, '5強': 50, '6弱': 55, '6強': 60, '7': 70,
-    };
-    return map[text] ?? 0;
-  };
-
+  // Municipality-level scales: color only municipalities with actual observed
+  // intensity data (no distance-based estimation — see muniScales below).
   const muniScales = useMemo(() => {
     if (granularity !== 'municipality' || !currentQuake || !muniGeoData) return null;
 
-    const hypo = currentQuake.earthquake.hypocenter;
-    const mag = hypo.magnitude;
-    const depth = hypo.depth;
-    const epiLat = hypo.latitude;
-    const epiLng = hypo.longitude;
-    const canEstimate = Number.isFinite(mag) && mag > 0 && epiLat > 0 && epiLng > 0;
-
-    // Build a lookup from observed point address text -> scale, to match against municipality names
+    // Build a lookup from observed point address text -> scale, to match against municipality names.
+    // We only color municipalities with actual observed data — no distance-based estimation,
+    // since a point-source intensity formula badly overestimates the affected radius for
+    // small/shallow earthquakes (e.g. an M2.8 quake showing intensity 3 hundreds of km away).
     const observed = currentQuake.points.map(p => ({
       pref: p.pref,
       addr: (p.addr || '').replace(/[市区町村郡]$/, ''),
@@ -350,25 +337,6 @@ export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userL
 
       if (match && match.scale > 0) {
         result[code] = match.scale;
-      } else if (canEstimate) {
-        // Estimate from hypocentral distance using the polygon centroid (largest ring only)
-        let coords: number[][] = feature.geometry.coordinates[0];
-        if (feature.geometry.type === 'MultiPolygon') {
-          let maxLen = 0;
-          for (const poly of feature.geometry.coordinates as number[][][][]) {
-            if (poly[0].length > maxLen) { maxLen = poly[0].length; coords = poly[0]; }
-          }
-        }
-        let latSum = 0, lngSum = 0, pts = 0;
-        for (const pt of coords) { lngSum += pt[0]; latSum += pt[1]; pts++; }
-        if (pts > 0) {
-          const distKm = haversineKm(latSum / pts, lngSum / pts, epiLat, epiLng);
-          const text = computeIntensityAtLocation ? computeIntensityAtLocation(mag, depth, distKm, 1.0) : null;
-          if (text) {
-            const s = scaleTextToNum(text);
-            if (s > 0) result[code] = s;
-          }
-        }
       }
     }
     return result;
