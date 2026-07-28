@@ -348,7 +348,7 @@ export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userL
         o.pref === pref && o.addr && (city.includes(o.addr) || o.addr.includes(city.replace(/[市区町村郡]$/, '')))
       );
 
-      if (match) {
+      if (match && match.scale > 0) {
         result[code] = match.scale;
       } else if (canEstimate) {
         // Estimate from hypocentral distance using the polygon centroid (largest ring only)
@@ -364,7 +364,10 @@ export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userL
         if (pts > 0) {
           const distKm = haversineKm(latSum / pts, lngSum / pts, epiLat, epiLng);
           const text = computeIntensityAtLocation ? computeIntensityAtLocation(mag, depth, distKm, 1.0) : null;
-          if (text) result[code] = scaleTextToNum(text);
+          if (text) {
+            const s = scaleTextToNum(text);
+            if (s > 0) result[code] = s;
+          }
         }
       }
     }
