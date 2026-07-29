@@ -149,6 +149,25 @@ const saturationDistKm = (mag: number): number =>
   Math.max(5, Math.min(15, 15 - (mag - 4) * 2.5));
 
 /**
+ * Distance-attenuation coefficient for the log10(distance) term, made
+ * magnitude-dependent. A single fixed coefficient (0.5) cannot fit both large
+ * and small earthquakes: keeping it fixed made small/shallow events (M<5)
+ * show inflated intensity hundreds of km from the epicenter, since the
+ * formula was grid-search optimised primarily against larger, intensity-4+
+ * JMA records. Larger ruptures also genuinely attenuate more gently with
+ * distance (bigger fault plane, longer wave train), while small point-source
+ * events attenuate sharply — so a steeper coefficient at low M is physically
+ * reasonable, not just a curve-fitting patch.
+ * M7+ keeps the original grid-search-optimised value (0.5) unchanged;
+ * M4 and below steepens to 1.3; linearly interpolated in between.
+ */
+const attenuationCoef = (mag: number): number => {
+  if (mag >= 7) return 0.5;
+  if (mag <= 4) return 1.3;
+  return 1.3 - (mag - 4) * (0.8 / 3);
+};
+
+/**
  * Estimate the maximum seismic intensity at the surface point directly above
  * the hypocenter from magnitude and focal depth.
  * Uses the empirical formula: I = 2.606 + 1.498·M − 1.657·log10(depth)
@@ -161,7 +180,7 @@ export const computeMaxIntensity = (mag: number, depthKm: number): string => {
   // Grid-search optimised against 1713 unique JMA records (intensity 4+, 2000-2026).
   // MSE=0.26, 93.7% within ±1 intensity level.
   // Tends to underestimate intensity 5強+ due to data imbalance (65% are intensity 4).
-  const I = 3.0 + 0.4 * mag - 0.5 * Math.log10(d);
+  const I = 3.0 + 0.4 * mag - attenuationCoef(mag) * Math.log10(d);
   if (I < 0.5) return '0';
   if (I < 1.5) return '1';
   if (I < 2.5) return '2';
@@ -201,7 +220,7 @@ export const computeIntensityAtLocation = (
   if (!Number.isFinite(mag) || mag <= 0) return '?';
   const hypoDist = Math.max(Math.sqrt(depthKm ** 2 + epicentralDistKm ** 2), saturationDistKm(mag));
   const arvClamped = Math.max(arv, 0.1);
-  const I = 3.0 + 0.4 * mag - 0.5 * Math.log10(hypoDist) + Math.log10(arvClamped);
+  const I = 3.0 + 0.4 * mag - attenuationCoef(mag) * Math.log10(hypoDist) + Math.log10(arvClamped);
   if (I < 0.5) return '0';
   if (I < 1.5) return '1';
   if (I < 2.5) return '2';

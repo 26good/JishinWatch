@@ -63,12 +63,28 @@ const haversineKm = (lat1: number, lng1: number, lat2: number, lng2: number) => 
 };
 
 // Compute JMA intensity scale (×10 integer) from hypocentral distance using
-// calibrated attenuation: I = 3.0 + 0.4·M − 0.5·log10(D), D = hypocentral km.
+// calibrated attenuation: I = 3.0 + 0.4·M − coef·log10(D), D = hypocentral km.
 // Always returns a value (no null) so every prefecture gets colored.
+// Same magnitude-dependent saturation floor as computeIntensityAtLocation in
+// utils-earthquake.ts — prevents small/shallow EEW events from painting an
+// unrealistically large area on the shake map. M4 → 15km, M8+ → 5km.
+const saturationDistKm = (mag: number): number =>
+  Math.max(5, Math.min(15, 15 - (mag - 4) * 2.5));
+
+// Same magnitude-dependent attenuation coefficient as utils-earthquake.ts —
+// a fixed 0.5 coefficient let small/shallow events (M<5) show inflated
+// intensity hundreds of km away. M7+ keeps the original grid-search value.
+const attenuationCoef = (mag: number): number => {
+  if (mag >= 7) return 0.5;
+  if (mag <= 4) return 1.3;
+  return 1.3 - (mag - 4) * (0.8 / 3);
+};
+
 const estimateEEWScale = (surfaceDistKm: number, depthKm: number, magnitude: number): number => {
   if (magnitude <= 0) return 10;
-  const D = Math.sqrt(surfaceDistKm ** 2 + Math.max(5, depthKm) ** 2);
-  const I = 3.0 + 0.4 * magnitude - 0.5 * Math.log10(Math.max(1, D));
+  const floor = saturationDistKm(magnitude);
+  const D = Math.max(Math.sqrt(surfaceDistKm ** 2 + Math.max(floor, depthKm) ** 2), floor);
+  const I = 3.0 + 0.4 * magnitude - attenuationCoef(magnitude) * Math.log10(D);
   // Convert continuous intensity to JMA scale×10 steps
   const steps = [10, 20, 30, 40, 45, 50, 55, 60, 70];
   const raw = Math.round(I * 10); // e.g. 2.3 → 23
