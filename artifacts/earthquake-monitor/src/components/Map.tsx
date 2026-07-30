@@ -363,15 +363,16 @@ export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userL
     const code = feature.properties?.N03_007;
     const scale = code && muniScales ? muniScales[code] : undefined;
     if (scale === undefined) {
-      // No intensity data (incl. intensity 0 / out of range) — fully transparent,
-      // so the underlying prefecture layer's plain land color shows through instead
-      // of this layer appearing to paint every municipality.
+      // No intensity data (incl. intensity 0 / out of range) — keep the boundary
+      // line visible so municipality borders are always shown, but leave the
+      // fill transparent so the underlying prefecture layer's land color shows
+      // through instead of this layer appearing to paint every municipality.
       return {
-        color: 'transparent',
-        weight: 0,
+        color: '#3a3a50',
+        weight: 0.4,
         fillColor: 'transparent',
         fillOpacity: 0,
-        opacity: 0,
+        opacity: 1,
       };
     }
     return {
@@ -498,7 +499,7 @@ export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userL
         <GeoJSON key={geoKey} data={geoData} style={getStyle} />
       )}
 
-      {granularity === 'municipality' && muniGeoData && currentQuake && (
+      {granularity === 'municipality' && muniGeoData && (
         <GeoJSON key={`muni-${geoKey}`} data={muniGeoData} style={getMuniStyle} />
       )}
 
