@@ -382,6 +382,46 @@ export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userL
     return result;
   }, [granularity, currentQuake, muniGeoData]);
 
+  // Individual marker per observed point in municipality mode: matches every
+  // observation in currentQuake.points against a municipality polygon centroid,
+  // so the map shows exactly the same set of points as the observation list tab
+  // (unlike the single per-prefecture chip used in pref mode).
+  const muniObsMarkers = useMemo(() => {
+    if (granularity !== 'municipality' || !currentQuake || !muniGeoData) return [];
+
+    const centroidOf = (feature: any): [number, number] | null => {
+      let coords: number[][] = feature.geometry.coordinates[0];
+      if (feature.geometry.type === 'MultiPolygon') {
+        let maxLen = 0;
+        for (const poly of feature.geometry.coordinates as number[][][][]) {
+          if (poly[0].length > maxLen) { maxLen = poly[0].length; coords = poly[0]; }
+        }
+      }
+      let latSum = 0, lngSum = 0, pts = 0;
+      for (const pt of coords) { lngSum += pt[0]; latSum += pt[1]; pts++; }
+      return pts > 0 ? [latSum / pts, lngSum / pts] : null;
+    };
+
+    const markers: { key: string; position: [number, number]; scale: number }[] = [];
+    currentQuake.points.forEach((p, idx) => {
+      if (p.scale <= 0) return;
+      const addr = (p.addr || '').replace(/[市区町村郡]$/, '');
+      if (!addr) return;
+
+      const feature = muniGeoData.features.find((f: any) => {
+        const props = f.properties || {};
+        if ((props.N03_001 || '') !== p.pref) return false;
+        const city = (props.N03_003 || '') + (props.N03_004 || '');
+        return city.includes(addr) || addr.includes(city.replace(/[市区町村郡]$/, ''));
+      });
+      if (!feature) return;
+
+      const pos = centroidOf(feature);
+      if (pos) markers.push({ key: `obs-${idx}`, position: pos, scale: p.scale });
+    });
+    return markers;
+  }, [granularity, currentQuake, muniGeoData]);
+
   // Style function for the municipality-level GeoJSON layer (used when granularity === 'municipality')
   const getMuniStyle = (feature: any) => {
     const code = feature.properties?.N03_007;
@@ -624,7 +664,7 @@ export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userL
         />
       )}
 
-      {showObsPoints && currentQuake && !(eew && !eew.isCancel) && geoData && geoData.features.map((feature: any, i: number) => {
+      {granularity === 'pref' && showObsPoints && currentQuake && !(eew && !eew.isCancel) && geoData && geoData.features.map((feature: any, i: number) => {
         let matchedPref: string | null = null;
         for (const pref in prefScales) {
           const prefName = pref.replace(/[県府都]$/, '');
@@ -655,6 +695,16 @@ export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userL
           />
         );
       })}
+
+      {granularity === 'municipality' && showObsPoints && !(eew && !eew.isCancel) &&
+        muniObsMarkers.map(m => (
+          <Marker
+            key={m.key}
+            position={m.position}
+            icon={createIcon(m.scale)}
+            interactive={false}
+          />
+        ))}
     </MapContainer>
   );
 };
