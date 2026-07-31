@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { EEWData, EarthquakeHistoryItem, TsunamiInfo, computeIntensityAtLocation } from '../lib/utils-earthquake';
 import { PREF_COORDS, PACIFIC_COASTAL_PREFS } from '../lib/pref-coords';
 import { initAudioContext, playSound } from '../lib/audio';
@@ -310,6 +310,14 @@ export const useTestMode = () => {
   const toggle = useCallback((soundEnabled: boolean) => {
     if (isTestMode) stop(); else start(soundEnabled);
   }, [isTestMode, start, stop]);
+
+  // Clear any pending timers if the component unmounts mid-simulation,
+  // so we don't try to update state after unmount.
+  useEffect(() => {
+    return () => {
+      timersRef.current.forEach(clearTimeout);
+    };
+  }, []);
 
   return { isTestMode, testEEW, testQuake, testTsunami, testPhase, toggle, stop };
 };
