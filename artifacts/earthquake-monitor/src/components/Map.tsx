@@ -80,8 +80,32 @@ const attenuationCoef = (mag: number): number => {
   return 1.3 - (mag - 4) * (0.8 / 3);
 };
 
+// Same magnitude-based felt-radius cutoff as utils-earthquake.ts — the
+// log-linear attenuation formula never actually reaches intensity 0 within a
+// realistic distance for mid-to-large magnitudes, so beyond this radius the
+// shake map is forced to show no color (intensity 0) instead of the formula's
+// slow, unphysical tail.
+const feltLimitKm = (mag: number): number => {
+  const points: [number, number][] = [
+    [2.0, 20], [3.0, 50], [4.0, 100], [5.0, 200],
+    [6.0, 400], [7.0, 700], [8.0, 1200], [9.0, 2000],
+  ];
+  if (mag <= points[0][0]) return points[0][1];
+  if (mag >= points[points.length - 1][0]) return points[points.length - 1][1];
+  for (let i = 0; i < points.length - 1; i++) {
+    const [m1, d1] = points[i];
+    const [m2, d2] = points[i + 1];
+    if (mag >= m1 && mag <= m2) {
+      const t = (mag - m1) / (m2 - m1);
+      return d1 + t * (d2 - d1);
+    }
+  }
+  return 100;
+};
+
 const estimateEEWScale = (surfaceDistKm: number, depthKm: number, magnitude: number): number => {
   if (magnitude <= 0) return 10;
+  if (surfaceDistKm > feltLimitKm(magnitude)) return 0;
   const floor = saturationDistKm(magnitude);
   const D = Math.max(Math.sqrt(surfaceDistKm ** 2 + Math.max(floor, depthKm) ** 2), floor);
   const I = 3.0 + 0.4 * magnitude - attenuationCoef(magnitude) * Math.log10(D);
@@ -418,8 +442,10 @@ export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userL
         if (pts > 0) {
           const surfaceDistKm = haversineKm(latSum / pts, lngSum / pts, eewEpicenter.lat, eewEpicenter.lng);
           const estimated = estimateEEWScale(surfaceDistKm, eewEpicenter.depth, mag);
-          fillColor = getIntensityColor(estimated);
-          fillOpacity = 0.82;
+          if (estimated > 0) {
+            fillColor = getIntensityColor(estimated);
+            fillOpacity = 0.82;
+          }
         }
 
         // Override with J-SHIS ARV-corrected intensity for user's nearest prefecture

@@ -168,6 +168,40 @@ const attenuationCoef = (mag: number): number => {
 };
 
 /**
+ * Maximum distance (km) at which an earthquake of a given magnitude is
+ * realistically felt at all (intensity 1+). Beyond this, we force intensity
+ * to 0 regardless of what the attenuation formula computes.
+ *
+ * This exists because the attenuation formula above is a simple log-linear
+ * fit: it decays forever but never reaches zero within a realistic distance
+ * for mid-to-large magnitudes (e.g. the raw formula only reaches intensity 0
+ * around 2,500,000km for M6 — clearly unphysical). A hard, magnitude-based
+ * felt-radius cutoff is the safe fix: it doesn't touch the calibrated curve
+ * near the source (where the 1713-record grid search applies), only forces
+ * intensity to 0 far outside any real earthquake's felt area.
+ * Roughly follows the general pattern that M3 quakes are felt ~50km away,
+ * M5 ~200km, M7 ~700km, M9 (e.g. Tohoku 2011) ~2000km — linearly
+ * interpolated between magnitude/distance anchor points.
+ */
+const feltLimitKm = (mag: number): number => {
+  const points: [number, number][] = [
+    [2.0, 20], [3.0, 50], [4.0, 100], [5.0, 200],
+    [6.0, 400], [7.0, 700], [8.0, 1200], [9.0, 2000],
+  ];
+  if (mag <= points[0][0]) return points[0][1];
+  if (mag >= points[points.length - 1][0]) return points[points.length - 1][1];
+  for (let i = 0; i < points.length - 1; i++) {
+    const [m1, d1] = points[i];
+    const [m2, d2] = points[i + 1];
+    if (mag >= m1 && mag <= m2) {
+      const t = (mag - m1) / (m2 - m1);
+      return d1 + t * (d2 - d1);
+    }
+  }
+  return 100;
+};
+
+/**
  * Estimate the maximum seismic intensity at the surface point directly above
  * the hypocenter from magnitude and focal depth.
  * Uses the empirical formula: I = 2.606 + 1.498·M − 1.657·log10(depth)
@@ -218,6 +252,10 @@ export const computeIntensityAtLocation = (
   arv: number,
 ): string => {
   if (!Number.isFinite(mag) || mag <= 0) return '?';
+  // Hard cutoff: beyond the realistic felt radius for this magnitude, the
+  // attenuation formula's slow log-decay never actually reaches intensity 0
+  // (see feltLimitKm for why) — so treat it as no perceptible shaking.
+  if (epicentralDistKm > feltLimitKm(mag)) return '0';
   const hypoDist = Math.max(Math.sqrt(depthKm ** 2 + epicentralDistKm ** 2), saturationDistKm(mag));
   const arvClamped = Math.max(arv, 0.1);
   const I = 3.0 + 0.4 * mag - attenuationCoef(mag) * Math.log10(hypoDist) + Math.log10(arvClamped);
