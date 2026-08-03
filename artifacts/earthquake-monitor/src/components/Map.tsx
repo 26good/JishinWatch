@@ -25,6 +25,7 @@ type Props = {
   showObsPoints?: boolean;
   showEEWMap?: boolean;
   granularity?: 'pref' | 'municipality';
+  municipalityStyle?: 'points' | 'fill';
 };
 
 const P_WAVE_SPEED_KM_PER_SEC = 6.0;
@@ -286,9 +287,10 @@ const extractCoastlines = (geoData: any): Array<{ pref: string; zone: string | n
   return result;
 };
 
-export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userLocation, onSetUserLocation, settingLocation, userNearestPref, userLocationIntensity, showObsPoints = true, showEEWMap = true, granularity = 'pref' }: Props) => {
+export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userLocation, onSetUserLocation, settingLocation, userNearestPref, userLocationIntensity, showObsPoints = true, showEEWMap = true, granularity = 'pref', municipalityStyle = 'points' }: Props) => {
   const [geoData, setGeoData] = useState<any>(null);
   const [muniGeoData, setMuniGeoData] = useState<any>(null);
+  const [stationList, setStationList] = useState<{ name: string; pref: string; lat: number; lon: number }[] | null>(null);
 
   const hasTsunamiInfo = !!tsunami && tsunami.areas.length > 0;
   // キーは都道府県名、または北海道の場合は "都道府県名|予報区名" の複合キー。
@@ -332,13 +334,34 @@ export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userL
   // Municipality-level boundaries are ~8.7MB, so only fetch them when the user
   // actually switches to the more granular view, and only once.
   useEffect(() => {
-    if (granularity === 'municipality' && !muniGeoData) {
+    if (granularity === 'municipality' && municipalityStyle === 'fill' && !muniGeoData) {
       fetch('https://raw.githubusercontent.com/smartnews-smri/japan-topography/main/data/municipality/geojson/s0010/N03-21_210101.json')
         .then(r => r.json())
         .then(data => setMuniGeoData(data))
         .catch(() => {});
     }
-  }, [granularity, muniGeoData]);
+  }, [granularity, municipalityStyle, muniGeoData]);
+
+  // Official JMA seismic intensity observation station master (name -> lat/lon),
+  // used for the "points" municipality style: since P2P Quake's observation
+  // point names (e.g. "浦幌町桜町") are finer-grained than municipality
+  // boundaries and don't reliably match polygon names, we look up each point's
+  // exact coordinate from this list instead of estimating a centroid.
+  useEffect(() => {
+    if (granularity === 'municipality' && municipalityStyle === 'points' && !stationList) {
+      fetch('https://gist.githubusercontent.com/iku55/79005d1896631ad6117bbe327b8162c1/raw/stations.json')
+        .then(r => r.json())
+        .then((data: any[]) => {
+          setStationList(data.map(s => ({
+            name: s.name,
+            pref: s.pref?.name || '',
+            lat: parseFloat(s.lat),
+            lon: parseFloat(s.lon),
+          })).filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lon)));
+        })
+        .catch(() => {});
+    }
+  }, [granularity, municipalityStyle, stationList]);
 
   const prefScales: Record<string, number> = {};
   if (currentQuake) {
@@ -382,12 +405,14 @@ export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userL
     return result;
   }, [granularity, currentQuake, muniGeoData]);
 
-  // Individual marker per observed point in municipality mode: matches every
-  // observation in currentQuake.points against a municipality polygon centroid,
-  // so the map shows exactly the same set of points as the observation list tab
-  // (unlike the single per-prefecture chip used in pref mode).
-  const muniObsMarkers = useMemo(() => {
-    if (granularity !== 'municipality' || !currentQuake || !muniGeoData) return [];
+  // "fill" style: individual marker per observed point, placed at the centroid
+  // of the matched municipality polygon. Matching by substring against
+  // municipality names is approximate — P2P Quake's point names (e.g.
+  // "浦幌町桜町") are finer-grained than municipality boundaries and don't
+  // always match. Kept as a fallback/alternative to the more accurate
+  // "points" style below.
+  const muniObsMarkersFill = useMemo(() => {
+    if (granularity !== 'municipality' || municipalityStyle !== 'fill' || !currentQuake || !muniGeoData) return [];
 
     const centroidOf = (feature: any): [number, number] | null => {
       let coords: number[][] = feature.geometry.coordinates[0];
@@ -420,7 +445,30 @@ export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userL
       if (pos) markers.push({ key: `obs-${idx}`, position: pos, scale: p.scale });
     });
     return markers;
-  }, [granularity, currentQuake, muniGeoData]);
+  }, [granularity, municipalityStyle, currentQuake, muniGeoData]);
+
+  // "points" style (default, more accurate): match each observed point against
+  // the official JMA station master by exact name, so the marker sits at the
+  // station's real coordinate instead of an approximated polygon centroid.
+  const muniObsMarkersPoints = useMemo(() => {
+    if (granularity !== 'municipality' || municipalityStyle !== 'points' || !currentQuake || !stationList) return [];
+
+    const byName = new Map<string, { lat: number; lon: number }>();
+    for (const s of stationList) {
+      if (!byName.has(s.name)) byName.set(s.name, { lat: s.lat, lon: s.lon });
+    }
+
+    const markers: { key: string; position: [number, number]; scale: number }[] = [];
+    currentQuake.points.forEach((p, idx) => {
+      if (p.scale <= 0 || !p.addr) return;
+      const station = byName.get(p.addr);
+      if (!station) return;
+      markers.push({ key: `obs-${idx}`, position: [station.lat, station.lon], scale: p.scale });
+    });
+    return markers;
+  }, [granularity, municipalityStyle, currentQuake, stationList]);
+
+  const muniObsMarkers = municipalityStyle === 'points' ? muniObsMarkersPoints : muniObsMarkersFill;
 
   // Style function for the municipality-level GeoJSON layer (used when granularity === 'municipality')
   const getMuniStyle = (feature: any) => {
@@ -455,7 +503,7 @@ export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userL
     let borderWeight = 0.8;
     const featureText = JSON.stringify(feature.properties);
 
-    if (currentQuake && !(granularity === 'municipality' && muniGeoData)) {
+    if (currentQuake && !(granularity === 'municipality' && municipalityStyle === 'fill' && muniGeoData)) {
       for (const pref in prefScales) {
         const prefName = pref.replace(/[県府都]$/, '');
         if (featureText.includes(prefName)) {
@@ -565,7 +613,7 @@ export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userL
         <GeoJSON key={geoKey} data={geoData} style={getStyle} />
       )}
 
-      {granularity === 'municipality' && muniGeoData && (
+      {granularity === 'municipality' && municipalityStyle === 'fill' && muniGeoData && (
         <GeoJSON key={`muni-${geoKey}`} data={muniGeoData} style={getMuniStyle} />
       )}
 

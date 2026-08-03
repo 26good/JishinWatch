@@ -175,7 +175,14 @@ function Home() {
   useEffect(() => {
     localStorage.setItem('granularity_v1', granularity);
   }, [granularity]);
-  const TERMS_VERSION = '1';
+  const [municipalityStyle, setMunicipalityStyle] = useState<'points' | 'fill'>(() => {
+    const saved = localStorage.getItem('municipality_style_v1');
+    return saved === 'fill' ? 'fill' : 'points';
+  });
+  useEffect(() => {
+    localStorage.setItem('municipality_style_v1', municipalityStyle);
+  }, [municipalityStyle]);
+  const TERMS_VERSION = '2';
   const [showTerms, setShowTerms] = useState(() => {
     return localStorage.getItem('terms_ack_version') !== TERMS_VERSION;
   });
@@ -555,6 +562,12 @@ function Home() {
                   <span className="font-semibold text-white/90">地盤増幅率データ：</span>
                   <a href="https://www.j-shis.bosai.go.jp/" target="_blank" rel="noopener noreferrer" className="text-[#38bdf8] underline">J-SHIS（防災科学技術研究所）</a>
                 </li>
+                <li>
+                  <span className="font-semibold text-white/90">震度観測点座標データ：</span>
+                  気象庁震度観測点データを基に作成された座標リスト（
+                  <a href="https://gist.github.com/iku55/79005d1896631ad6117bbe327b8162c1" target="_blank" rel="noopener noreferrer" className="text-[#38bdf8] underline">iku55氏提供</a>
+                  ）
+                </li>
               </ul>
             </div>
 
@@ -599,6 +612,7 @@ function Home() {
         showObsPoints={showObsPoints}
         showEEWMap={showEEWMap}
         granularity={granularity}
+        municipalityStyle={municipalityStyle}
       />
 
       {/* Top-right button row */}
@@ -1011,6 +1025,25 @@ function Home() {
                     ))}
                   </div>
                 </div>
+                {granularity === 'municipality' && (
+                  <div className="flex items-center justify-between pl-3 border-l-2 border-white/10">
+                    <div>
+                      <div className="text-sm font-semibold text-white/90">市区町村の表示方法</div>
+                      <div className="text-[11px] text-white/40">観測点：正確な地点にマーカー／塗りつぶし：市区町村を色で塗る（概算）</div>
+                    </div>
+                    <div className="flex gap-1">
+                      {([['points', '観測点'], ['fill', '塗りつぶし']] as const).map(([val, label]) => (
+                        <button
+                          key={val}
+                          onClick={() => setMunicipalityStyle(val)}
+                          className={`px-2.5 py-1 rounded-md text-xs font-bold border transition-colors duration-150 ${municipalityStyle === val ? 'bg-[#38bdf8] border-[#38bdf8] text-black' : 'bg-white/5 border-white/15 text-white/60 hover:bg-white/10'}`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <label className="flex items-center justify-between cursor-pointer">
                   <div>
                     <div className="text-sm font-semibold text-white/90">観測点マーカー</div>
