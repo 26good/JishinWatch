@@ -168,20 +168,6 @@ function Home() {
   useEffect(() => {
     localStorage.setItem('history_limit_v1', String(historyLimit));
   }, [historyLimit]);
-  const [granularity, setGranularity] = useState<'pref' | 'municipality'>(() => {
-    const saved = localStorage.getItem('granularity_v1');
-    return saved === 'municipality' ? 'municipality' : 'pref';
-  });
-  useEffect(() => {
-    localStorage.setItem('granularity_v1', granularity);
-  }, [granularity]);
-  const [municipalityStyle, setMunicipalityStyle] = useState<'points' | 'fill'>(() => {
-    const saved = localStorage.getItem('municipality_style_v1');
-    return saved === 'fill' ? 'fill' : 'points';
-  });
-  useEffect(() => {
-    localStorage.setItem('municipality_style_v1', municipalityStyle);
-  }, [municipalityStyle]);
   const TERMS_VERSION = '2';
   const [showTerms, setShowTerms] = useState(() => {
     return localStorage.getItem('terms_ack_version') !== TERMS_VERSION;
@@ -611,8 +597,6 @@ function Home() {
         userLocationIntensity={userLocationIntensity}
         showObsPoints={showObsPoints}
         showEEWMap={showEEWMap}
-        granularity={granularity}
-        municipalityStyle={municipalityStyle}
       />
 
       {/* Top-right button row */}
@@ -1008,42 +992,6 @@ function Home() {
                     ))}
                   </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-semibold text-white/90">震度表示の詳細さ</div>
-                    <div className="text-[11px] text-white/40">地図の震度色分けの単位</div>
-                  </div>
-                  <div className="flex gap-1">
-                    {([['pref', '都道府県'], ['municipality', '市区町村']] as const).map(([val, label]) => (
-                      <button
-                        key={val}
-                        onClick={() => setGranularity(val)}
-                        className={`px-2.5 py-1 rounded-md text-xs font-bold border transition-colors duration-150 ${granularity === val ? 'bg-[#38bdf8] border-[#38bdf8] text-black' : 'bg-white/5 border-white/15 text-white/60 hover:bg-white/10'}`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {granularity === 'municipality' && (
-                  <div className="flex items-center justify-between pl-3 border-l-2 border-white/10">
-                    <div>
-                      <div className="text-sm font-semibold text-white/90">市区町村の表示方法</div>
-                      <div className="text-[11px] text-white/40">観測点：正確な地点にマーカー／塗りつぶし：市区町村を色で塗る（概算）</div>
-                    </div>
-                    <div className="flex gap-1">
-                      {([['points', '観測点'], ['fill', '塗りつぶし']] as const).map(([val, label]) => (
-                        <button
-                          key={val}
-                          onClick={() => setMunicipalityStyle(val)}
-                          className={`px-2.5 py-1 rounded-md text-xs font-bold border transition-colors duration-150 ${municipalityStyle === val ? 'bg-[#38bdf8] border-[#38bdf8] text-black' : 'bg-white/5 border-white/15 text-white/60 hover:bg-white/10'}`}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
                 <label className="flex items-center justify-between cursor-pointer">
                   <div>
                     <div className="text-sm font-semibold text-white/90">観測点マーカー</div>
