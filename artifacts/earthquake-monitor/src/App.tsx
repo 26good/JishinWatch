@@ -557,6 +557,15 @@ function Home() {
               </ul>
             </div>
 
+            <a
+              href="https://github.com/26good/Earthquakeviewer/blob/main/TERMS.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[11px] text-[#38bdf8] underline text-center"
+            >
+              詳しい利用規約はこちら
+            </a>
+
             <button
               onClick={acknowledgeTerms}
               className="mt-1 w-full rounded-lg bg-[#38bdf8] text-black font-bold text-sm py-2.5 hover:bg-[#5fc8fa] transition-colors"
