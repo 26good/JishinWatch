@@ -168,7 +168,7 @@ function Home() {
   useEffect(() => {
     localStorage.setItem('history_limit_v1', String(historyLimit));
   }, [historyLimit]);
-  const TERMS_VERSION = '2';
+  const TERMS_VERSION = '3';
   const [showTerms, setShowTerms] = useState(() => {
     return localStorage.getItem('terms_ack_version') !== TERMS_VERSION;
   });
@@ -509,52 +509,54 @@ function Home() {
       {/* ── Terms of use & credits modal (shown on first visit) ─────────── */}
       {showTerms && (
         <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="glass-panel rounded-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto custom-scrollbar p-5 flex flex-col gap-4">
+          <div className="glass-panel rounded-2xl max-w-3xl w-full max-h-[85vh] overflow-y-auto custom-scrollbar p-5 flex flex-col gap-4">
             <div>
               <div className="text-lg font-black text-white">ご利用にあたって</div>
               <div className="text-[11px] text-white/40 mt-0.5">最初にご確認ください</div>
             </div>
 
-            <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 text-[12px] leading-relaxed text-yellow-100/90">
-              本アプリは気象庁・国土交通省・国土地理院その他の公的機関が提供する公式サービスではありません。個人が開発した非公式の地震情報表示アプリです。緊急地震速報・地震情報・津波情報は、必ず気象庁など公式の発表・報道機関の情報もあわせてご確認ください。本アプリの情報の正確性・即時性は保証されません。人命・避難判断・医療・交通等に関わる緊急の判断において、本アプリを唯一の情報源として使用しないでください。
-            </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 text-[12px] leading-relaxed text-yellow-100/90">
+                本アプリは気象庁・国土交通省・国土地理院その他の公的機関が提供する公式サービスではありません。個人がAI（Claude）を活用して開発した非公式の地震情報表示アプリです。緊急地震速報・地震情報・津波情報は、必ず気象庁など公式の発表・報道機関の情報もあわせてご確認ください。本アプリの情報の正確性・即時性は保証されません。人命・避難判断・医療・交通等に関わる緊急の判断において、本アプリを唯一の情報源として使用しないでください。
+              </div>
 
-            <div>
-              <div className="text-[11px] font-bold text-white/40 uppercase tracking-widest mb-2">データ提供元・クレジット</div>
-              <ul className="flex flex-col gap-2 text-[12px] text-white/70 leading-relaxed">
-                <li>
-                  <span className="font-semibold text-white/90">地震・津波情報：</span>
-                  <a href="https://www.p2pquake.net/" target="_blank" rel="noopener noreferrer" className="text-[#38bdf8] underline">P2P地震情報</a>
-                  （気象庁の情報を二次利用）
-                </li>
-                <li>
-                  <span className="font-semibold text-white/90">緊急地震速報：</span>
-                  <a href="https://wolfx.jp/" target="_blank" rel="noopener noreferrer" className="text-[#38bdf8] underline">Wolfx Project</a>
-                  （非公式のリアルタイム配信サービス）
-                </li>
-                <li>
-                  <span className="font-semibold text-white/90">都道府県境界データ：</span>
-                  地球地図日本（
-                  <a href="https://www.gsi.go.jp/kankyochiri/gm_jpn.html" target="_blank" rel="noopener noreferrer" className="text-[#38bdf8] underline">国土地理院</a>
-                  ）／
-                  <a href="https://github.com/dataofjapan/land" target="_blank" rel="noopener noreferrer" className="text-[#38bdf8] underline">dataofjapan/land</a>
-                </li>
-                <li>
-                  <span className="font-semibold text-white/90">市区町村境界データ：</span>
-                  国土数値情報（行政区域データ、国土交通省）／加工：スマートニュース メディア研究所
-                  <a href="https://github.com/smartnews-smri/japan-topography" target="_blank" rel="noopener noreferrer" className="text-[#38bdf8] underline ml-1">japan-topography</a>
-                </li>
-                <li>
-                  <span className="font-semibold text-white/90">地盤増幅率データ：</span>
-                  <a href="https://www.j-shis.bosai.go.jp/" target="_blank" rel="noopener noreferrer" className="text-[#38bdf8] underline">J-SHIS（防災科学技術研究所）</a>
-                </li>
-                <li>
-                  <span className="font-semibold text-white/90">震度観測点座標データ：</span>
-                  気象庁震度観測点データを基に作成された座標リスト（
-                  <a href="https://gist.github.com/iku55/79005d1896631ad6117bbe327b8162c1" target="_blank" rel="noopener noreferrer" className="text-[#38bdf8] underline">iku55氏提供</a>
-                  ）
-                </li>
-              </ul>
+              <div>
+                <div className="text-[11px] font-bold text-white/40 uppercase tracking-widest mb-2">データ提供元・クレジット</div>
+                <ul className="flex flex-col gap-2 text-[12px] text-white/70 leading-relaxed">
+                  <li>
+                    <span className="font-semibold text-white/90">地震・津波情報：</span>
+                    <a href="https://www.p2pquake.net/" target="_blank" rel="noopener noreferrer" className="text-[#38bdf8] underline">P2P地震情報</a>
+                    （気象庁の情報を二次利用）
+                  </li>
+                  <li>
+                    <span className="font-semibold text-white/90">緊急地震速報：</span>
+                    <a href="https://wolfx.jp/" target="_blank" rel="noopener noreferrer" className="text-[#38bdf8] underline">Wolfx Project</a>
+                    （非公式のリアルタイム配信サービス）
+                  </li>
+                  <li>
+                    <span className="font-semibold text-white/90">都道府県境界データ：</span>
+                    地球地図日本（
+                    <a href="https://www.gsi.go.jp/kankyochiri/gm_jpn.html" target="_blank" rel="noopener noreferrer" className="text-[#38bdf8] underline">国土地理院</a>
+                    ）／
+                    <a href="https://github.com/dataofjapan/land" target="_blank" rel="noopener noreferrer" className="text-[#38bdf8] underline">dataofjapan/land</a>
+                  </li>
+                  <li>
+                    <span className="font-semibold text-white/90">市区町村境界データ：</span>
+                    国土数値情報（行政区域データ、国土交通省）／加工：スマートニュース メディア研究所
+                    <a href="https://github.com/smartnews-smri/japan-topography" target="_blank" rel="noopener noreferrer" className="text-[#38bdf8] underline ml-1">japan-topography</a>
+                  </li>
+                  <li>
+                    <span className="font-semibold text-white/90">地盤増幅率データ：</span>
+                    <a href="https://www.j-shis.bosai.go.jp/" target="_blank" rel="noopener noreferrer" className="text-[#38bdf8] underline">J-SHIS（防災科学技術研究所）</a>
+                  </li>
+                  <li>
+                    <span className="font-semibold text-white/90">震度観測点座標データ：</span>
+                    気象庁震度観測点データを基に作成された座標リスト（
+                    <a href="https://gist.github.com/iku55/79005d1896631ad6117bbe327b8162c1" target="_blank" rel="noopener noreferrer" className="text-[#38bdf8] underline">iku55氏提供</a>
+                    ）
+                  </li>
+                </ul>
+              </div>
             </div>
 
             <a
