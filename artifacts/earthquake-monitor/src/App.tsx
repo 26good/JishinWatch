@@ -347,7 +347,7 @@ function Home() {
 
   // Blink the tab title based on current state
   useEffect(() => {
-    const BASE = '地震監視モニター';
+    const BASE = 'QuakeSight';
     let blink = false;
     const tick = () => {
       blink = !blink;
@@ -383,7 +383,7 @@ function Home() {
     };
     const id = setInterval(tick, 900);
     tick();
-    return () => { clearInterval(id); document.title = '地震監視モニター'; };
+    return () => { clearInterval(id); document.title = 'QuakeSight'; };
   }, []);
   // ────────────────────────────────────────────────────────────────────────
 
@@ -560,7 +560,7 @@ function Home() {
             </div>
 
             <a
-              href="https://github.com/26good/Earthquakeviewer/blob/main/TERMS.md"
+              href="https://github.com/26good/QuakeSight/blob/main/TERMS.md"
               target="_blank"
               rel="noopener noreferrer"
               className="text-[11px] text-[#38bdf8] underline text-center"
@@ -1109,7 +1109,7 @@ function Home() {
               >
                 利用規約・データ提供元クレジットを見る
               </button>
-              <div className="text-[11px] text-white/25 text-center">地震監視モニター Ver 2.4.0</div>
+              <div className="text-[11px] text-white/25 text-center">QuakeSight Ver 2.4.0</div>
             </div>
           </div>
         )}
