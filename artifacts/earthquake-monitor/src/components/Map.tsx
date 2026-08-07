@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Circle, GeoJSON, MapContainer, Marker, Polyline, useMap, useMapEvents, ZoomControl } from 'react-leaflet';
 import L from 'leaflet';
 import { EEWData, EarthquakeHistoryItem, TsunamiInfo, getIntensityColor, getScaleText, getTsunamiGradeColor } from '../lib/utils-earthquake';
+import { PREF_ARV } from '../lib/pref-coords';
 
 type UserLocation = { lat: number; lng: number } | null;
 
@@ -62,62 +63,52 @@ const haversineKm = (lat1: number, lng1: number, lat2: number, lng2: number) => 
 };
 
 // Compute JMA intensity scale (×10 integer) from hypocentral distance using
-// calibrated attenuation: I = 3.0 + 0.4·M − coef·log10(D), D = hypocentral km.
-// Always returns a value (no null) so every prefecture gets colored.
-// Same magnitude-dependent saturation floor as computeIntensityAtLocation in
-// utils-earthquake.ts — prevents small/shallow EEW events from painting an
-// unrealistically large area on the shake map. M4 → 15km, M8+ → 5km.
-const saturationDistKm = (mag: number): number =>
-  Math.max(5, Math.min(15, 15 - (mag - 4) * 2.5));
-
-// Same magnitude-dependent attenuation coefficient as utils-earthquake.ts —
-// a fixed 0.5 coefficient let small/shallow events (M<5) show inflated
-// intensity hundreds of km away. M7+ keeps the original grid-search value.
-const attenuationCoef = (mag: number): number => {
-  if (mag >= 7) return 0.5;
-  if (mag <= 4) return 1.3;
-  return 1.3 - (mag - 4) * (0.8 / 3);
+// EEW shake map: same 司・翠川系 attenuation formula as computeIntensityAtLocation
+// in utils-earthquake.ts, duplicated here since this runs inside a synchronous
+// Leaflet style callback (can't share the async-capable module directly).
+const EEW_TYPE_PARAMS: Record<'crustal' | 'plate' | 'deep', { kT: number; x0: number }> = {
+  crustal: { kT: 1.2, x0: 10.0 },
+  plate: { kT: 0.9, x0: 15.0 },
+  deep: { kT: 0.6, x0: 20.0 },
+};
+const EEW_PLATE_KEYWORDS = ['沖', '灘', 'トラフ', '海溝', '湾', '近海', '太平洋', '日本海溝', '千島', '南海', '東海', '日向'];
+const getEqTypeForEEW = (epicenterName: string, depthKm: number): 'crustal' | 'plate' | 'deep' => {
+  if (depthKm >= 100) return 'deep';
+  if (EEW_PLATE_KEYWORDS.some(k => epicenterName.includes(k))) return 'plate';
+  return 'crustal';
+};
+const fallbackBaseIntensityForEEW = (mag: number, depthKm: number): number => {
+  const v = 1.8 * mag - 1.2 * Math.log10(depthKm + 10.0) - 3.0;
+  return Math.max(0.0, Math.min(7.0, v));
 };
 
-// Same magnitude-based felt-radius cutoff as utils-earthquake.ts — the
-// log-linear attenuation formula never actually reaches intensity 0 within a
-// realistic distance for mid-to-large magnitudes, so beyond this radius the
-// shake map is forced to show no color (intensity 0) instead of the formula's
-// slow, unphysical tail.
-const feltLimitKm = (mag: number): number => {
-  const points: [number, number][] = [
-    [2.0, 20], [3.0, 50], [4.0, 100], [5.0, 200],
-    [6.0, 400], [7.0, 700], [8.0, 1200], [9.0, 2000],
-  ];
-  if (mag <= points[0][0]) return points[0][1];
-  if (mag >= points[points.length - 1][0]) return points[points.length - 1][1];
-  for (let i = 0; i < points.length - 1; i++) {
-    const [m1, d1] = points[i];
-    const [m2, d2] = points[i + 1];
-    if (mag >= m1 && mag <= m2) {
-      const t = (mag - m1) / (m2 - m1);
-      return d1 + t * (d2 - d1);
-    }
-  }
-  return 100;
-};
-
-const estimateEEWScale = (surfaceDistKm: number, depthKm: number, magnitude: number): number => {
+const estimateEEWScale = (
+  surfaceDistKm: number,
+  depthKm: number,
+  magnitude: number,
+  arv: number = 1.0,
+  epicenterName: string = '',
+): number => {
   if (magnitude <= 0) return 10;
-  if (surfaceDistKm > feltLimitKm(magnitude)) return 0;
-  const floor = saturationDistKm(magnitude);
-  const D = Math.max(Math.sqrt(surfaceDistKm ** 2 + Math.max(floor, depthKm) ** 2), floor);
-  const I = 3.0 + 0.4 * magnitude - attenuationCoef(magnitude) * Math.log10(D);
+  const R = Math.sqrt(surfaceDistKm ** 2 + Math.max(0, depthKm) ** 2);
+  const eqType = getEqTypeForEEW(epicenterName, depthKm);
+  const params = EEW_TYPE_PARAMS[eqType];
+
+  const base = fallbackBaseIntensityForEEW(magnitude, depthKm);
+  const effectiveDistance = Math.max(0.0, R - depthKm);
+  const distanceDecay = params.kT * Math.log10(1.0 + effectiveDistance / params.x0);
+  const siteTerm = 2.0 * Math.log10(Math.max(arv, 0.1));
+
+  const I = Math.max(0.0, Math.min(7.0, base - distanceDecay + siteTerm));
   // Convert continuous intensity to JMA scale×10 steps
   const steps = [10, 20, 30, 40, 45, 50, 55, 60, 70];
   const raw = Math.round(I * 10); // e.g. 2.3 → 23
-  // Find nearest step at or below raw
-  let scale = 10;
+  let scale = 0;
   for (const s of steps) {
     if (raw >= s) scale = s;
     else break;
   }
-  return Math.min(70, Math.max(10, scale));
+  return scale;
 };
 
 const AutoZoomToEpicenter = ({
@@ -410,7 +401,9 @@ export const EarthquakeMap = ({ currentQuake, eew, tsunami, tsunamiSource, userL
         coords.forEach(pt => { lngSum += pt[0]; latSum += pt[1]; pts++; });
         if (pts > 0) {
           const surfaceDistKm = haversineKm(latSum / pts, lngSum / pts, eewEpicenter.lat, eewEpicenter.lng);
-          const estimated = estimateEEWScale(surfaceDistKm, eewEpicenter.depth, mag);
+          const featPref = feature.properties?.nam_ja || feature.properties?.name || '';
+          const arv = PREF_ARV[featPref] ?? 1.0;
+          const estimated = estimateEEWScale(surfaceDistKm, eewEpicenter.depth, mag, arv, eew.Hypocenter || '');
           if (estimated > 0) {
             fillColor = getIntensityColor(estimated);
             fillOpacity = 0.82;

@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { EEWData, EarthquakeHistoryItem, TsunamiInfo, computeIntensityAtLocation } from '../lib/utils-earthquake';
-import { PREF_COORDS, PACIFIC_COASTAL_PREFS } from '../lib/pref-coords';
+import { PREF_COORDS, PACIFIC_COASTAL_PREFS, PREF_ARV } from '../lib/pref-coords';
 import { initAudioContext, playSound } from '../lib/audio';
 
 const fmt = (d: Date) =>
@@ -71,7 +71,8 @@ const buildScenario = (): ScenarioQuake => {
   const points = Object.entries(PREF_COORDS)
     .map(([pref, coord]) => {
       const distKm = haversineKm(lat, lng, coord.lat, coord.lng);
-      const text = computeIntensityAtLocation(mag, depth, distKm, 1.0);
+      const arv = PREF_ARV[pref] ?? 1.0;
+      const text = computeIntensityAtLocation(mag, depth, distKm, arv, zone.name);
       const scale = scaleTextToNum(text);
       return { pref, addr: coord.addr, isArea: false, scale };
     })
