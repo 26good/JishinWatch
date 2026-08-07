@@ -39,7 +39,7 @@ pnpm workspace によるモノレポ構成です。詳細は [replit.md](./repli
 ```bash
 pnpm install
 pnpm run typecheck
-pnpm --filter @workspace/earthquake-monitor run dev
+pnpm --filter @workspace/jishinwatch run dev
 ```
 
 ## データ提供元

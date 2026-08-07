@@ -34,6 +34,6 @@ P/S wave behavior: P-wave and S-wave estimated range circles are shown only duri
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - `pnpm --filter @workspace/api-server run dev` — run API server locally
-- `pnpm --filter @workspace/earthquake-monitor run dev` — run the earthquake monitor web app
+- `pnpm --filter @workspace/jishinwatch run dev` — run the earthquake monitor web app
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
