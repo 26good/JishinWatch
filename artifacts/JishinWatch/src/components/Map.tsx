@@ -62,24 +62,16 @@ const haversineKm = (lat1: number, lng1: number, lat2: number, lng2: number) => 
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
-// Compute JMA intensity scale (×10 integer) from hypocentral distance using
-// EEW shake map: same 司・翠川系 attenuation formula as computeIntensityAtLocation
-// in utils-earthquake.ts, duplicated here since this runs inside a synchronous
-// Leaflet style callback (can't share the async-capable module directly).
-const EEW_TYPE_PARAMS: Record<'crustal' | 'plate' | 'deep', { kT: number; x0: number }> = {
-  crustal: { kT: 1.2, x0: 10.0 },
-  plate: { kT: 0.9, x0: 15.0 },
-  deep: { kT: 0.6, x0: 20.0 },
-};
+// EEW shake map: 司・翠川(1999)距離減衰式 — 気象庁がEEWの予測震度算出に
+// 実際に使用している経験的手法。utils-earthquake.ts の computeShiiIntensity
+// と同じ導出だが、この関数は同期の Leaflet style callback 内で呼ばれるため、
+// async 対応の共有モジュールをそのまま使えず、ここに複製している。
+const EEW_D_COEF: Record<'crustal' | 'plate' | 'deep', number> = { crustal: 0, plate: -0.02, deep: 0.12 };
 const EEW_PLATE_KEYWORDS = ['沖', '灘', 'トラフ', '海溝', '湾', '近海', '太平洋', '日本海溝', '千島', '南海', '東海', '日向'];
 const getEqTypeForEEW = (epicenterName: string, depthKm: number): 'crustal' | 'plate' | 'deep' => {
   if (depthKm >= 100) return 'deep';
   if (EEW_PLATE_KEYWORDS.some(k => epicenterName.includes(k))) return 'plate';
   return 'crustal';
-};
-const fallbackBaseIntensityForEEW = (mag: number, depthKm: number): number => {
-  const v = 1.8 * mag - 1.2 * Math.log10(depthKm + 10.0) - 3.0;
-  return Math.max(0.0, Math.min(7.0, v));
 };
 
 const estimateEEWScale = (
@@ -89,17 +81,23 @@ const estimateEEWScale = (
   arv: number = 1.0,
   epicenterName: string = '',
 ): number => {
-  if (magnitude <= 0) return 10;
-  const R = Math.sqrt(surfaceDistKm ** 2 + Math.max(0, depthKm) ** 2);
+  if (magnitude <= 0) return 0;
+  const magW = magnitude - 0.171; // Mjma → Mw (宇津 1982)
   const eqType = getEqTypeForEEW(epicenterName, depthKm);
-  const params = EEW_TYPE_PARAMS[eqType];
+  const d = EEW_D_COEF[eqType];
 
-  const base = fallbackBaseIntensityForEEW(magnitude, depthKm);
-  const effectiveDistance = Math.max(0.0, R - depthKm);
-  const distanceDecay = params.kT * Math.log10(1.0 + effectiveDistance / params.x0);
-  const siteTerm = 2.0 * Math.log10(Math.max(arv, 0.1));
+  const faultHalfLen = Math.pow(10, 0.5 * magW - 1.85) / 2;
+  const hypoDist = Math.sqrt(depthKm ** 2 + surfaceDistKm ** 2) - faultHalfLen;
+  const X = Math.max(hypoDist, 3);
 
-  const I = Math.max(0.0, Math.min(7.0, base - distanceDecay + siteTerm));
+  const logPgv600 = 0.58 * magW + 0.0038 * depthKm + d
+    - Math.log10(X + 0.0028 * Math.pow(10, 0.5 * magW))
+    - 0.002 * X - 1.29;
+  const pgv600 = Math.pow(10, logPgv600);
+  const pgv400 = pgv600 * 1.31;
+  const pgvSurface = pgv400 * Math.max(arv, 0.1);
+
+  const I = Math.max(0.0, Math.min(7.0, 2.68 + 1.72 * Math.log10(Math.max(pgvSurface, 1e-6))));
   // Convert continuous intensity to JMA scale×10 steps
   const steps = [10, 20, 30, 40, 45, 50, 55, 60, 70];
   const raw = Math.round(I * 10); // e.g. 2.3 → 23
