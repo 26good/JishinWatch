@@ -15,11 +15,11 @@ paths = [ "/" ]
 localPort = 22604
 
 [services.development]
-run = "pnpm --filter @workspace/earthquake-monitor run dev"
+run = "pnpm --filter @workspace/jishinwatch run dev"
 
 [services.production]
-build = [ "pnpm", "--filter", "@workspace/earthquake-monitor", "run", "build" ]
-publicDir = "artifacts/earthquake-monitor/dist/public"
+build = [ "pnpm", "--filter", "@workspace/jishinwatch", "run", "build" ]
+publicDir = "artifacts/JishinWatch/dist/public"
 serve = "static"
 
 [[services.production.rewrites]]
