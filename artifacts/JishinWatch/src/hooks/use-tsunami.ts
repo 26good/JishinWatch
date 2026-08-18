@@ -24,11 +24,21 @@ export const useTsunami = (isSoundEnabled: boolean) => {
       const list: TsunamiInfo[] = await res.json();
       const cutoff = Date.now() - TSUNAMI_MAX_AGE_MS;
 
-      const active = list.find(item => {
-        if (item.cancelled || !item.areas?.length) return false;
-        const issueTime = parseTsunamiTime(item.issue?.time) || parseTsunamiTime(item.time);
-        return issueTime > cutoff;
-      }) || null;
+      const timestamped = list
+        .map(item => ({
+          item,
+          issueTime: parseTsunamiTime(item.issue?.time) || parseTsunamiTime(item.time),
+        }))
+        .sort((a, b) => b.issueTime - a.issueTime);
+      const cancelledIds = new Set(
+        timestamped.filter(({ item }) => item.cancelled).map(({ item }) => item.id),
+      );
+      const active = timestamped.find(({ item, issueTime }) =>
+        !item.cancelled &&
+        !cancelledIds.has(item.id) &&
+        !!item.areas?.length &&
+        issueTime > cutoff,
+      )?.item || null;
 
       setTsunami(active);
       setLastTsunamiUpdate(new Date().toLocaleTimeString('ja-JP', {

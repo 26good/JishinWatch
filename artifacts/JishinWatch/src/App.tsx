@@ -65,6 +65,13 @@ const parseCoordinate = (value: string | number | undefined): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
+const parseDepthKm = (value: string | number | undefined): number => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (!value || value.trim() === 'ごく浅い') return 0;
+  const n = parseInt(value, 10);
+  return Number.isFinite(n) ? n : 0;
+};
+
 // Prefecture center coordinates for nearest-prefecture lookup
 const PREF_CENTERS = [
   { name: '北海道', lat: 43.06, lng: 142.96 },
@@ -410,8 +417,9 @@ function Home() {
     ? parseFloat(eew.Magunitude || eew.Magnitude || '0')
     : selectedQuake?.earthquake.hypocenter.magnitude || 0;
   const currentDepth = isEEWMode
-    ? parseInt(eew.Depth || '0')
+    ? parseDepthKm(eew.Depth)
     : selectedQuake?.earthquake.hypocenter.depth || 0;
+  const eewDepthText = isEEWMode && eew.Depth?.trim() === 'ごく浅い' ? 'ごく浅い' : null;
 
   // When the EEW API MaxInt is empty, fall back to intensity computed from M and depth
   const eewApiMaxInt = isEEWMode ? ((eew.MaxInt?.trim() || eew.MaxIntensity?.trim()) ?? '') : '';
@@ -818,12 +826,14 @@ function Home() {
                 <div className="flex items-center gap-2">
                   <div className="text-3xl font-sans font-normal flex items-baseline" style={{ color: currentDepthColor }}>
                     {isEEWMode
-                      ? parseInt(eew.Depth || '0')
+                      ? (eewDepthText || currentDepth)
                       : (selectedQuake?.earthquake.hypocenter.depth === 0
                           ? 'ごく浅い'
                           : selectedQuake?.earthquake.hypocenter.depth || '--')}
                     <span className="text-sm ml-1">
-                      {isEEWMode || (selectedQuake && selectedQuake.earthquake.hypocenter.depth !== 0) ? 'km' : ''}
+                      {isEEWMode
+                        ? (eewDepthText ? '' : 'km')
+                        : (selectedQuake && selectedQuake.earthquake.hypocenter.depth !== 0 ? 'km' : '')}
                     </span>
                   </div>
                   <div className="w-2.5 h-[26px] rounded-sm"
@@ -1110,7 +1120,7 @@ function Home() {
               >
                 利用規約・データ提供元クレジットを見る
               </button>
-              <div className="text-[11px] text-white/25 text-center">JishinWatch v26.8.6</div>
+              <div className="text-[11px] text-white/25 text-center">JishinWatch β26.8.19</div>
             </div>
           </div>
         )}
@@ -1220,7 +1230,7 @@ function Home() {
           {isTestMode ? '⏹ TEST終了' : 'TEST'}
         </button>
         <div className="bg-[#141419]/85 backdrop-blur-md px-4 py-2 rounded-full text-xs text-[#a0a0a8]">
-          {isSandboxMode ? (sandboxStatus || 'Sandbox...') : status} | v26.8.6
+           {isSandboxMode ? (sandboxStatus || 'Sandbox...') : status} | β26.8.19
         </div>
       </div>
     </div>

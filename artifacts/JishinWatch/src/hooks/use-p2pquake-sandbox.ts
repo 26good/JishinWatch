@@ -28,6 +28,8 @@ interface P2PMessage {
   Magunitude?: string;
   Magnitude?: string;
   Latitude?: string | number;
+  Longitude?: string | number;
+  latitude?: string | number;
   longitude?: string | number;
   Depth?: string;
   Serial?: string;
@@ -36,6 +38,8 @@ interface P2PMessage {
 const parseP2PEEW = (msg: P2PMessage): EEWData | null => {
   if (msg.code !== 556) return null;
   if (!msg.Serial) return null;
+  const latitude = msg.Latitude ?? msg.latitude;
+  const longitude = msg.Longitude ?? msg.longitude;
   return {
     type: msg.type || 'jma_eew',
     isCancel: msg.isCancel || false,
@@ -46,8 +50,10 @@ const parseP2PEEW = (msg: P2PMessage): EEWData | null => {
     MaxInt: msg.MaxInt || msg.MaxIntensity || '',
     MaxIntensity: msg.MaxIntensity || msg.MaxInt || '',
     Magnitude: msg.Magunitude || msg.Magnitude || '',
-    Latitude: msg.Latitude,
-    longitude: msg.longitude,
+    Latitude: latitude,
+    Longitude: longitude,
+    latitude,
+    longitude,
     Depth: msg.Depth || '',
     Serial: msg.Serial,
   };
@@ -118,6 +124,7 @@ export const useP2PQuakeRealtime = (isSandbox: boolean, isSoundEnabled: boolean)
     let ws: WebSocket;
     let reconnectTimer: ReturnType<typeof setTimeout>;
     let msgTimeoutTimer: ReturnType<typeof setTimeout>;
+    let disposed = false;
 
     const resetMsgTimeout = () => {
       clearTimeout(msgTimeoutTimer);
@@ -128,9 +135,11 @@ export const useP2PQuakeRealtime = (isSandbox: boolean, isSoundEnabled: boolean)
     };
 
     const doConnect = () => {
+      if (disposed) return;
       ws = new WebSocket(url);
 
       ws.onopen = () => {
+        if (disposed) return;
         setData(prev => ({
           ...prev,
           status: isSandbox
@@ -141,6 +150,7 @@ export const useP2PQuakeRealtime = (isSandbox: boolean, isSoundEnabled: boolean)
       };
 
       ws.onmessage = (event) => {
+        if (disposed) return;
         resetMsgTimeout();
         try {
           const msg: P2PMessage = JSON.parse(event.data);
@@ -204,6 +214,7 @@ export const useP2PQuakeRealtime = (isSandbox: boolean, isSoundEnabled: boolean)
 
       ws.onclose = () => {
         clearTimeout(msgTimeoutTimer);
+        if (disposed) return;
         setData(prev => ({ ...prev, status: 'Connection Lost. Reconnecting...' }));
         reconnectTimer = setTimeout(doConnect, 5000);
       };
@@ -212,9 +223,14 @@ export const useP2PQuakeRealtime = (isSandbox: boolean, isSoundEnabled: boolean)
     doConnect();
 
     return () => {
+      disposed = true;
       clearTimeout(reconnectTimer);
       clearTimeout(msgTimeoutTimer);
-      ws?.close();
+      if (ws) {
+        // Prevent cleanup-triggered close events from scheduling a reconnect.
+        ws.onclose = null;
+        ws.close();
+      }
     };
   }, [isSandbox, isSoundEnabled]);
 

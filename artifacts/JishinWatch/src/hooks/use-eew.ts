@@ -53,6 +53,7 @@ export const useEEW = (isSoundEnabled: boolean) => {
     let keepAliveTimer: ReturnType<typeof setInterval>;
     // Detects zombie connections: OPEN state but no messages received
     let msgTimeoutTimer: ReturnType<typeof setTimeout>;
+    let disposed = false;
 
     const resetMsgTimeout = (wsRef: WebSocket) => {
       clearTimeout(msgTimeoutTimer);
@@ -64,14 +65,17 @@ export const useEEW = (isSoundEnabled: boolean) => {
     };
 
     const connect = () => {
+      if (disposed) return;
       ws = new WebSocket('wss://ws-api.wolfx.jp/jma_eew');
 
       ws.onopen = () => {
+        if (disposed) return;
         setStatus('System Online / EEW Connected');
         resetMsgTimeout(ws);
       };
 
       ws.onmessage = (event) => {
+        if (disposed) return;
         // Reset the dead-connection watchdog on every message (including pings)
         resetMsgTimeout(ws);
 
@@ -112,6 +116,8 @@ export const useEEW = (isSoundEnabled: boolean) => {
 
       ws.onclose = () => {
         clearTimeout(msgTimeoutTimer);
+        clearInterval(keepAliveTimer);
+        if (disposed) return;
         setStatus('Connection Lost. Reconnecting...');
         reconnectTimer = setTimeout(connect, 5000);
       };
@@ -127,11 +133,16 @@ export const useEEW = (isSoundEnabled: boolean) => {
     connect();
 
     return () => {
+      disposed = true;
       clearTimeout(reconnectTimer);
       clearTimeout(msgTimeoutTimer);
       clearInterval(keepAliveTimer);
       if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
-      if (ws) ws.close();
+      if (ws) {
+        // Prevent cleanup-triggered close events from scheduling a reconnect.
+        ws.onclose = null;
+        ws.close();
+      }
     };
   }, [isSoundEnabled]);
 
